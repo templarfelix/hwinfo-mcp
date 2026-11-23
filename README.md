@@ -21,6 +21,11 @@ It is a single executable that speaks MCP over stdin/stdout. It reads the block
 of memory HWiNFO shares with other programs and never writes to it, opens no
 network connection and changes nothing on the system.
 
+**Windows only.** HWiNFO exists only for Windows, and so does the shared memory
+this server reads, so the releases are for Windows on x64 and on Arm. Linux
+inside WSL 2 does not see the PC's sensor chips either: run the server on the
+Windows side.
+
 ## Quick start
 
 ### 1. Prepare HWiNFO
