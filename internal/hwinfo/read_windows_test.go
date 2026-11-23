@@ -164,7 +164,7 @@ func TestReaderCopiesTheBlockUnderTheMutex(t *testing.T) {
 
 	// Reading again proves the release worked for real: an owned mutex
 	// could only be taken again by the very thread that holds it.
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		if _, locked, err := r.Read(); err != nil || !locked {
 			t.Fatalf("read %d: locked = %v, err = %v", i, locked, err)
 		}

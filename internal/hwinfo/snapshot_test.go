@@ -269,7 +269,7 @@ func TestParseEveryTruncation(t *testing.T) {
 			im := sample(layout)
 			im.Dead = dead
 			raw := im.Bytes()
-			for n := 0; n < len(raw); n++ {
+			for n := range raw {
 				snap, err := Parse(raw[:n:n])
 				if err == nil {
 					t.Fatalf("layout %d dead=%v: %d of %d bytes parsed without error", layout, dead, n, len(raw))

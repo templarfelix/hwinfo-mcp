@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Test (${{ matrix.os }}, Go ${{ matrix.go }})
+    name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -19,14 +19,14 @@ jobs:
         # ubuntu covers the portable code (parser, filters, MCP server);
         # windows adds the shared-memory reader, which only compiles there.
         os: [ubuntu-latest, windows-latest]
-        # The oldest Go that go.mod allows, and the current one.
-        go: ["1.25", "stable"]
     steps:
       - uses: actions/checkout@v7
 
+      # The Go version is pinned in .tool-versions, the file asdf reads, so
+      # CI builds with exactly what `asdf install` gives a developer.
       - uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go }}
+          go-version-file: .tool-versions
 
       - name: Vet
         run: go vet ./...
@@ -58,7 +58,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version-file: .tool-versions
 
       - name: Build
         env:

@@ -391,7 +391,7 @@ func TestGetReadingsNoMatch(t *testing.T) {
 // fits into a tool result, and says so when it left some out.
 func TestGetReadingsIsBounded(t *testing.T) {
 	im := hwinfotest.Image{PollTime: pollTime.Unix(), Sensors: []hwinfotest.Sensor{{Name: "Big sensor"}, {Name: "Small sensor"}}}
-	for i := 0; i < maxReadings+25; i++ {
+	for i := range maxReadings + 25 {
 		im.Readings = append(im.Readings, hwinfotest.Reading{Type: hwinfotest.Usage, Sensor: 0, Label: fmt.Sprintf("Core %d Usage", i), Unit: "%", Value: float64(i)})
 	}
 	im.Readings = append(im.Readings, hwinfotest.Reading{Type: hwinfotest.Fan, Sensor: 1, Label: "Fan", Unit: "RPM", Value: 900})

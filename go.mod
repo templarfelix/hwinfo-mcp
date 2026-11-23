@@ -1,10 +1,10 @@
 module github.com/templarfelix/hwinfo-mcp
 
-go 1.25.0
+go 1.27.4
 
 require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

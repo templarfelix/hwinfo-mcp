@@ -120,6 +120,16 @@ it, and the patterns live in `internal/hwinfo/filter.go` (`cpuLabel`,
 
 ## Development
 
+The Go version is pinned in `.tool-versions`. With [asdf](https://asdf-vm.com)
+and its `golang` plugin, this installs it:
+
+```
+asdf install
+```
+
+`go.mod` asks for the same version, so a different Go release fetches that
+toolchain on its own, and CI reads it from the same file.
+
 ```
 go vet ./...
 go test -race ./...
