@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,6 +136,44 @@ func TestParseInvalidUTF8FallsBackToANSI(t *testing.T) {
 	}
 	if got := snap.Readings[0].Unit; got != degC {
 		t.Errorf("unit = %q, want %q", got, degC)
+	}
+}
+
+// HWiNFO cuts a name that is too long for its field wherever the field ends,
+// even inside a multi-byte character. Only that last character is lost; the
+// rest of the UTF-8 text is still used.
+func TestParseNameCutInsideACharacter(t *testing.T) {
+	im := sample(2)
+	raw := im.Bytes()
+	field := raw[im.ReadingOffset(1)+316 : im.ReadingOffset(1)+316+128]
+	long := []byte("Potência " + strings.Repeat("x", 116)) // 126 bytes
+	copy(field, long)
+	field[126] = 0xC3 // first half of a two-byte character, cut by the field's end
+	field[127] = 0
+
+	snap, err := Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snap.Readings[1].Label; got != string(long) {
+		t.Errorf("label = %q, want the UTF-8 text without the cut-off character", got)
+	}
+
+	tests := []struct{ in, want string }{
+		{"", ""},
+		{"abc", "abc"},
+		{"café", "café"},
+		{"caf\xc3", "caf"},     // two-byte character, one byte present
+		{"x\xe2\x82", "x"},     // three-byte character, two present
+		{"x\xf0\x9f\x98", "x"}, // four-byte character, three present
+		{"\xe6\xb8\xa9", "温"},  // complete three-byte character
+		{"a\xffb", "a\xffb"},   // invalid in the middle: not this function's business
+		{"\xc3", ""},
+	}
+	for _, tt := range tests {
+		if got := string(trimPartialRune([]byte(tt.in))); got != tt.want {
+			t.Errorf("trimPartialRune(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 

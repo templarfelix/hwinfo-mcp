@@ -47,7 +47,7 @@ func buildVersion() string {
 
 const instructions = `Read-only access to the hardware sensors that HWiNFO monitors on this Windows PC: temperatures, voltages, fan speeds, power draw, clocks and usage.
 
-Start with thermal_overview for the key CPU and GPU temperatures. For anything else, call list_sensors to see what exists, then get_readings with a sensor, label or types filter: unfiltered, it returns hundreds of readings.
+Start with thermal_overview for the key CPU and GPU temperatures. For anything else, call list_sensors to see what exists, then get_readings with a sensor, label or types filter: there are hundreds of readings and one call returns at most 300.
 
 Labels are HWiNFO's original English ones; when HWiNFO runs in another language or a sensor was renamed, the displayed name is given alongside. If a tool reports that sensor data is unavailable, hwinfo_status explains why and how to fix it.`
 
@@ -125,7 +125,7 @@ func newServerAt(src source, now func() time.Time) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_readings",
-		Description: "Return current sensor readings from HWiNFO, grouped by sensor. Narrow the result with the sensor, label and types filters; without filters every reading is returned, which is several hundred on a typical PC. Set stats to add the minimum, maximum and average HWiNFO has recorded since it started.",
+		Description: "Return current sensor readings from HWiNFO, grouped by sensor. Narrow the result with the sensor, label and types filters: a PC has several hundred readings and one call returns at most 300 of them (truncated is set when more matched). Set stats to add the minimum, maximum and average HWiNFO has recorded since it started.",
 		Annotations: readOnly("Get HWiNFO readings"),
 	}, h.getReadings)
 
@@ -209,9 +209,15 @@ type readingsOutput struct {
 	Active     bool             `json:"active" jsonschema:"whether HWiNFO is updating the sensor data right now"`
 	LastUpdate string           `json:"last_update,omitempty" jsonschema:"time of HWiNFO's last sensor poll, RFC 3339"`
 	Warning    string           `json:"warning,omitempty" jsonschema:"set when the data is stale"`
-	Matched    int              `json:"matched" jsonschema:"number of readings returned"`
+	Matched    int              `json:"matched" jsonschema:"number of readings that match the filters"`
+	Truncated  bool             `json:"truncated,omitempty" jsonschema:"true when more readings matched than one call returns; narrow the filters to see the rest"`
 	Sensors    []sensorReadings `json:"sensors"`
 }
+
+// maxReadings caps what one get_readings call returns. A PC easily has 500
+// readings, and with statistics that is more JSON than MCP clients accept in
+// a single tool result; the cap keeps the largest answer around 40 KB.
+const maxReadings = 300
 
 type throttling struct {
 	Active   bool `json:"active" jsonschema:"a thermal limit is in effect right now"`
@@ -295,8 +301,11 @@ func (h *handlers) freshness(snap *hwinfo.Snapshot) (lastUpdate string, age *flo
 // error that says what to do about it.
 func (h *handlers) load() (*hwinfo.Snapshot, error) {
 	snap, err := h.src()
-	if err == nil || (snap != nil && errors.Is(err, hwinfo.ErrInactive)) {
+	if snap != nil && (err == nil || errors.Is(err, hwinfo.ErrInactive)) {
 		return snap, nil
+	}
+	if err == nil {
+		err = errors.New("no sensor data")
 	}
 	if advice := hint(err); advice != "" {
 		return nil, fmt.Errorf("%w. %s", err, advice)
@@ -374,11 +383,12 @@ func (h *handlers) getReadings(_ context.Context, _ *mcp.CallToolRequest, in rea
 	}
 	selected := snap.Select(filter)
 
-	out := readingsOutput{
-		Active:  snap.Active,
-		Matched: len(selected),
-		Sensors: bySensor(snap, selected, true, in.Stats),
+	out := readingsOutput{Active: snap.Active, Matched: len(selected)}
+	if len(selected) > maxReadings {
+		selected = selected[:maxReadings]
+		out.Truncated = true
 	}
+	out.Sensors = bySensor(snap, selected, true, in.Stats)
 	out.LastUpdate, _, out.Warning = h.freshness(snap)
 	return nil, out, nil
 }

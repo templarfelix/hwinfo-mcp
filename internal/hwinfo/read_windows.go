@@ -21,7 +21,7 @@ import (
 var procOpenFileMapping = windows.NewLazySystemDLL("kernel32.dll").NewProc("OpenFileMappingW")
 
 // tornReadRetries bounds how often an unlocked copy is repeated when HWiNFO
-// rewrites the header while it is being taken.
+// rewrites the block while it is being taken.
 const tornReadRetries = 3
 
 func openFileMapping(access uint32, name string) (windows.Handle, error) {
@@ -100,6 +100,8 @@ func pointerAt(addr uintptr) unsafe.Pointer {
 //
 // Not getting the mutex is no error: it may be missing, not openable from
 // this integrity level, or held for longer than wait. fn then runs unlocked.
+// It is also told the mutex is not held when the mutex was abandoned by its
+// previous owner, because the block may then be half-written.
 //
 // fn runs on a goroutine of its own, because a Windows mutex belongs to the
 // thread that acquired it and must be released by that same thread. The
@@ -110,17 +112,18 @@ func withMutex(name string, wait time.Duration, fn func(held bool)) {
 		defer close(done)
 		runtime.LockOSThread()
 
-		m, held := acquireMutex(name, wait)
-		fn(held)
-		if held {
+		m, owned, clean := acquireMutex(name, wait)
+		fn(clean)
+		if owned {
 			err := windows.ReleaseMutex(m)
 			windows.CloseHandle(m)
 			if err != nil {
-				// The mutex is still owned by this thread. Leave the thread
-				// locked: the Go runtime then destroys it when the goroutine
-				// ends, and Windows passes the mutex on as abandoned.
-				// Returning the thread to the pool instead would keep
-				// HWiNFO waiting for it indefinitely.
+				// Releasing a mutex this thread owns should not fail. If it
+				// ever does, the thread still owns it, so the thread stays
+				// locked: the Go runtime normally destroys a locked thread
+				// when its goroutine ends, and Windows then passes the
+				// mutex on as abandoned. Handing the thread back to the
+				// pool would keep HWiNFO waiting for it for certain.
 				return
 			}
 		}
@@ -131,28 +134,47 @@ func withMutex(name string, wait time.Duration, fn func(held bool)) {
 
 // acquireMutex opens the named mutex and waits for it. It must be called on
 // a goroutine that is locked to its thread.
-func acquireMutex(name string, wait time.Duration) (windows.Handle, bool) {
+//
+// owned reports whether this thread now holds the mutex and has to release
+// it. clean reports whether holding it also guarantees a consistent block:
+// that is not so for an abandoned mutex, whose previous owner ended while
+// holding it and may have left the block half-written.
+func acquireMutex(name string, wait time.Duration) (m windows.Handle, owned, clean bool) {
 	p, err := windows.UTF16PtrFromString(name)
 	if err != nil {
-		return 0, false
+		return 0, false, false
 	}
 	// SYNCHRONIZE is all it takes to wait for a mutex and to release it.
-	m, err := windows.OpenMutex(windows.SYNCHRONIZE, false, p)
+	m, err = windows.OpenMutex(windows.SYNCHRONIZE, false, p)
 	if err != nil {
-		return 0, false
+		return 0, false, false
 	}
-	event, err := windows.WaitForSingleObject(m, uint32(wait/time.Millisecond))
-	if err == nil && (event == windows.WAIT_OBJECT_0 || event == windows.WAIT_ABANDONED) {
-		return m, true
+	event, err := windows.WaitForSingleObject(m, waitMillis(wait))
+	switch {
+	case err == nil && event == windows.WAIT_OBJECT_0:
+		return m, true, true
+	case err == nil && event == windows.WAIT_ABANDONED:
+		return m, true, false
 	}
 	windows.CloseHandle(m)
-	return 0, false
+	return 0, false, false
+}
+
+// waitMillis converts a wait to the milliseconds WaitForSingleObject takes.
+// It rounds up, so that a short positive wait does not become none at all,
+// and stays clear of 0xFFFFFFFF, which means "wait forever".
+func waitMillis(d time.Duration) uint32 {
+	const longest = 60 * time.Second
+	d = min(max(d, 0), longest)
+	return uint32((d + time.Millisecond - 1) / time.Millisecond)
 }
 
 // copyBlock copies the used part of the mapped view into Go memory.
 //
-// Without the mutex HWiNFO may be in the middle of a poll, so the header is
-// compared before and after: if it changed, the copy is retried a few times.
+// Without the mutex HWiNFO may be in the middle of a poll. The copy is then
+// compared with the block as it reads right afterwards: HWiNFO rewrites the
+// values on every poll, so a block that still reads the same was not being
+// written. If it differs, the copy is retried a few times.
 //
 // The view is memory this process does not control. Should reading it ever
 // fault, the fault is reported as an error instead of ending the process.
@@ -174,11 +196,7 @@ func copyBlock(view []byte, locked bool) (data []byte, err error) {
 			return nil, err
 		}
 		data := bytes.Clone(view[:n])
-		if locked || attempt >= tornReadRetries {
-			return data, nil
-		}
-		hdr := min(n, headerSizeV2)
-		if bytes.Equal(data[:hdr], view[:hdr]) {
+		if locked || attempt >= tornReadRetries || bytes.Equal(data, view[:n]) {
 			return data, nil
 		}
 	}

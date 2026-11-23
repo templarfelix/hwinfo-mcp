@@ -1,7 +1,9 @@
 package hwinfo
 
 import (
+	"math"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -47,7 +49,7 @@ func (s *Snapshot) Select(f Filter) []Reading {
 
 	var out []Reading
 	for _, r := range s.Readings {
-		if len(f.Types) > 0 && !hasType(f.Types, r.Type) {
+		if len(f.Types) > 0 && !slices.Contains(f.Types, r.Type) {
 			continue
 		}
 		if r.SensorIndex >= 0 {
@@ -63,15 +65,6 @@ func (s *Snapshot) Select(f Filter) []Reading {
 		out = append(out, r)
 	}
 	return out
-}
-
-func hasType(types []ReadingType, t ReadingType) bool {
-	for _, x := range types {
-		if x == t {
-			return true
-		}
-	}
-	return false
 }
 
 // Thermal overview
@@ -261,9 +254,13 @@ func (d device) all(s *Snapshot, t ReadingType, set labelSet) []Reading {
 }
 
 // hottest returns the reading with the highest current value, or nil.
+// Readings that hold no number are passed over.
 func hottest(rs []Reading) *Reading {
 	var best *Reading
 	for i := range rs {
+		if math.IsNaN(rs[i].Value) {
+			continue
+		}
 		if best == nil || rs[i].Value > best.Value {
 			best = &rs[i]
 		}

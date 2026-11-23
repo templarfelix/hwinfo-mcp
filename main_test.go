@@ -387,6 +387,52 @@ func TestGetReadingsNoMatch(t *testing.T) {
 	}
 }
 
+// One call returns a bounded number of readings, so that the answer always
+// fits into a tool result, and says so when it left some out.
+func TestGetReadingsIsBounded(t *testing.T) {
+	im := hwinfotest.Image{PollTime: pollTime.Unix(), Sensors: []hwinfotest.Sensor{{Name: "Big sensor"}, {Name: "Small sensor"}}}
+	for i := 0; i < maxReadings+25; i++ {
+		im.Readings = append(im.Readings, hwinfotest.Reading{Type: hwinfotest.Usage, Sensor: 0, Label: fmt.Sprintf("Core %d Usage", i), Unit: "%", Value: float64(i)})
+	}
+	im.Readings = append(im.Readings, hwinfotest.Reading{Type: hwinfotest.Fan, Sensor: 1, Label: "Fan", Unit: "RPM", Value: 900})
+	cs := connect(t, from(t, im))
+
+	count := func(out readingsOutput) (n int) {
+		for _, s := range out.Sensors {
+			n += len(s.Readings)
+		}
+		return n
+	}
+
+	all, _ := output[readingsOutput](t, cs, "get_readings", nil)
+	if all.Matched != maxReadings+26 || !all.Truncated || count(all) != maxReadings {
+		t.Errorf("unfiltered: matched %d, truncated %v, returned %d; want %d, true, %d", all.Matched, all.Truncated, count(all), maxReadings+26, maxReadings)
+	}
+	if len(all.Sensors) != 1 || all.Sensors[0].Readings[maxReadings-1].Label != fmt.Sprintf("Core %d Usage", maxReadings-1) {
+		t.Error("the readings returned are not the first ones in HWiNFO's order")
+	}
+
+	// A filter brings the rest within reach, and an answer that fits is
+	// not flagged.
+	fan, raw := output[readingsOutput](t, cs, "get_readings", map[string]any{"types": []string{"fan"}})
+	if fan.Matched != 1 || fan.Truncated || count(fan) != 1 || strings.Contains(raw, "truncated") {
+		t.Errorf("filtered: %s", raw)
+	}
+}
+
+// A source that yields nothing at all is reported like any other failure.
+func TestToolsWithoutAnySnapshot(t *testing.T) {
+	cs := connect(t, func() (*hwinfo.Snapshot, error) { return nil, nil })
+	for _, tool := range []string{"list_sensors", "get_readings", "thermal_overview"} {
+		if res := call(t, cs, tool, nil); !res.IsError || !strings.Contains(text(t, res), "no sensor data") {
+			t.Errorf("%s: isError = %v, %s", tool, res.IsError, text(t, res))
+		}
+	}
+	if status, _ := output[statusOutput](t, cs, "hwinfo_status", nil); status.Available || status.Problem != "no sensor data" {
+		t.Errorf("status = %+v", status)
+	}
+}
+
 func TestGetReadingsRejectsUnknownType(t *testing.T) {
 	cs := connect(t, from(t, fixture()))
 	res := call(t, cs, "get_readings", map[string]any{"types": []string{"temperature", "pressure"}})

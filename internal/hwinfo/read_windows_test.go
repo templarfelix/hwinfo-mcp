@@ -89,6 +89,31 @@ func mutexOwned(t *testing.T, m windows.Handle) bool {
 	return info.CurrentCount <= 0
 }
 
+// abandon acquires the mutex on a thread that then ends without releasing it,
+// which is what a HWiNFO that dies in the middle of a poll leaves behind.
+func abandon(t *testing.T, m windows.Handle) {
+	t.Helper()
+	// The thread is created through Windows directly, not by the Go runtime,
+	// so that it is certain to end when its function returns.
+	body := windows.NewCallback(func(uintptr) uintptr {
+		windows.WaitForSingleObject(m, windows.INFINITE)
+		return 0
+	})
+	thread, _, err := procCreateThread.Call(0, 0, body, 0, 0, 0)
+	if thread == 0 {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	defer windows.CloseHandle(windows.Handle(thread))
+	if event, err := windows.WaitForSingleObject(windows.Handle(thread), 10_000); err != nil || event != windows.WAIT_OBJECT_0 {
+		t.Fatalf("waiting for the thread to end: event %#x, %v", event, err)
+	}
+	if mutexOwned(t, m) {
+		t.Fatal("the mutex is still owned after its owner's thread ended")
+	}
+}
+
+var procCreateThread = windows.NewLazySystemDLL("kernel32.dll").NewProc("CreateThread")
+
 // hold acquires the mutex on a thread of its own, as HWiNFO does during a
 // poll, and keeps it until release is called.
 func hold(t *testing.T, m windows.Handle) (release func()) {
@@ -179,6 +204,53 @@ func TestReaderFallsBackWhenTheMutexIsBusy(t *testing.T) {
 	}
 	if mutexOwned(t, mutex) {
 		t.Error("the mutex is still owned after its holder released it")
+	}
+}
+
+// An abandoned mutex can be acquired, but its last owner may have died while
+// rewriting the block. The read must succeed, must not claim the guarantee a
+// clean lock gives, and must leave the mutex free again.
+func TestReaderDoesNotTrustAnAbandonedMutex(t *testing.T) {
+	block := sample(2).Bytes()
+	mutexName, mutex := newMutex(t)
+	r := Reader{Mapping: publish(t, block, 64<<10), Mutex: mutexName}
+	abandon(t, mutex)
+
+	data, locked, err := r.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if locked {
+		t.Error("locked = true for a mutex whose owner died holding it")
+	}
+	if !bytes.Equal(data, block) {
+		t.Error("the copy differs from the published block")
+	}
+	if mutexOwned(t, mutex) {
+		t.Fatal("Read left the abandoned mutex owned")
+	}
+	// The abandonment is consumed by the first acquisition; from then on
+	// the mutex is an ordinary one again.
+	if _, locked, err := r.Read(); err != nil || !locked {
+		t.Errorf("second read: locked = %v, err = %v", locked, err)
+	}
+}
+
+func TestWaitMillis(t *testing.T) {
+	for d, want := range map[time.Duration]uint32{
+		-time.Second:            0,
+		0:                       0,
+		time.Nanosecond:         1, // a short wait is still a wait
+		500 * time.Microsecond:  1,
+		30 * time.Millisecond:   30,
+		200 * time.Millisecond:  200,
+		1500 * time.Microsecond: 2,
+		time.Hour:               60_000, // capped, and never 0xFFFFFFFF ("forever")
+		1<<63 - 1:               60_000,
+	} {
+		if got := waitMillis(d); got != want {
+			t.Errorf("waitMillis(%v) = %d, want %d", d, got, want)
+		}
 	}
 }
 

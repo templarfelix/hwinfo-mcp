@@ -226,13 +226,32 @@ func cString(b []byte) []byte {
 // UTF-8 copy when the layout has one and it is well formed, otherwise the
 // legacy ANSI copy, otherwise fallback.
 func userString(utf, ansi []byte, fallback string) string {
-	if u := cString(utf); len(u) > 0 && utf8.Valid(u) {
+	if u := trimPartialRune(cString(utf)); len(u) > 0 && utf8.Valid(u) {
 		return string(u)
 	}
 	if a := cString(ansi); len(a) > 0 {
 		return decodeANSI(a)
 	}
 	return fallback
+}
+
+// trimPartialRune drops a multi-byte character that was cut off at the end of
+// b, which is what happens when a long name is truncated to fit its field.
+// Anything else that is wrong with b is left for the caller to notice.
+func trimPartialRune(b []byte) []byte {
+	for i := 1; i <= utf8.UTFMax-1 && i <= len(b); i++ {
+		c := b[len(b)-i]
+		if c < 0x80 {
+			break // ASCII: the text ends on a complete character
+		}
+		if c >= 0xC0 { // lead byte of a sequence that is i bytes long so far
+			if !utf8.FullRune(b[len(b)-i:]) {
+				return b[:len(b)-i]
+			}
+			break
+		}
+	}
+	return b
 }
 
 // cp1252 maps the bytes 0x80-0x9F of Windows-1252 to Unicode. The bytes that

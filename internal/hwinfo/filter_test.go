@@ -1,6 +1,7 @@
 package hwinfo
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -197,6 +198,22 @@ func TestThermalsWithoutCPUOrGPUSensors(t *testing.T) {
 	empty := (&Snapshot{}).Thermals()
 	if len(empty.CPUs)+len(empty.GPUs)+len(empty.Other)+len(empty.Fans) != 0 {
 		t.Errorf("thermals of an empty snapshot = %+v", empty)
+	}
+}
+
+// A core whose temperature HWiNFO has not filled in yet holds no number. It
+// must not be reported as the hottest just because it comes first.
+func TestHottestIgnoresMissingValues(t *testing.T) {
+	nan := math.NaN()
+	rs := []Reading{{OriginalLabel: "Core0", Value: nan}, {OriginalLabel: "Core1", Value: 60}, {OriginalLabel: "Core2", Value: 71}, {OriginalLabel: "Core3", Value: nan}}
+	if got := label(hottest(rs)); got != "Core2" {
+		t.Errorf("hottest = %s, want Core2", got)
+	}
+	if got := hottest([]Reading{{Value: nan}}); got != nil {
+		t.Errorf("hottest of readings without numbers = %+v, want nil", got)
+	}
+	if got := hottest(nil); got != nil {
+		t.Errorf("hottest of nothing = %+v, want nil", got)
 	}
 }
 

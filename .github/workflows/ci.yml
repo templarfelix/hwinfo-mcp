@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Test (${{ matrix.os }})
+    name: Test (${{ matrix.os }}, Go ${{ matrix.go }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -19,12 +19,14 @@ jobs:
         # ubuntu covers the portable code (parser, filters, MCP server);
         # windows adds the shared-memory reader, which only compiles there.
         os: [ubuntu-latest, windows-latest]
+        # The oldest Go that go.mod allows, and the current one.
+        go: ["1.25", "stable"]
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
-          go-version: stable
+          go-version: ${{ matrix.go }}
 
       - name: Vet
         run: go vet ./...

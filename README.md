@@ -61,9 +61,17 @@ Claude Desktop, in `claude_desktop_config.json`:
 | `get_readings` | Current readings grouped by sensor. Filters: `sensor` and `label` (case-insensitive substrings), `types` (`temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other`), and `stats` to add minimum, maximum and average. |
 | `thermal_overview` | The readings that say how hot the PC runs: per CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power and throttling flags; per GPU the core, hot spot and memory junction temperatures, board power, fans and thermal limit flag; plus the remaining temperatures and fan speeds. |
 
-All four are annotated as read-only. Without filters `get_readings` returns
-everything, which is several hundred readings (about 50 KB of JSON on the
-development machine, 67 KB with `stats`), so filter where you can.
+All four are annotated as read-only. A PC has several hundred readings (484 on
+the development machine), and one `get_readings` call returns at most 300 of
+them: when more match, `truncated` is set and `matched` gives the total, so
+narrow the filters to see the rest.
+
+### What the client gets to see
+
+The server passes on HWiNFO's sensor names as they are. Some of them carry more
+than a model name: a drive's sensor includes its serial number, and the
+PresentMon sensor names the application it is watching. An assistant that calls
+`list_sensors` or `get_readings` receives those, like everything else it reads.
 
 ### Names and languages
 
@@ -83,7 +91,7 @@ On every tool call the server opens the mapping `Global\HWiNFO_SENS_SM2`
 read-only, maps it, and copies the part in use. While copying it holds HWiNFO's
 mutex `Global\HWiNFO_SM2_MUTEX` (waiting at most 200 ms for it), so that the
 copy cannot be half-updated; if the mutex cannot be had it copies anyway and
-checks that the header did not change meanwhile. Everything is released before
+checks that the block still reads the same afterwards. Everything is released before
 the call returns. Offsets and sizes come from the block's header and are
 checked against the size of the mapping before anything is read.
 
@@ -132,3 +140,7 @@ The race detector needs a C compiler; on a Windows machine without one, run
 
 Dependencies are the Go standard library, `golang.org/x/sys` and the official
 MCP Go SDK.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
