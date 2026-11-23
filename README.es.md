@@ -97,20 +97,21 @@ Elige el camino según tu cliente.
 
 El plugin trae el servidor junto con tres
 [skills](#skills-que-vienen-con-el-plugin) que le dan al asistente un método
-para leer los sensores. En una sesión de Claude Code:
-
-```
-/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
-```
-
-O desde una terminal:
+para leer los sensores. Desde una terminal:
 
 ```
 claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-No hace falta descargar nada más: el plugin trae su propia copia del servidor.
+O dentro de una sesión de Claude Code, con la versión 2.1.275 o posterior:
+
+```
+/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
+```
+
+El plugin trae su propia copia del servidor, así que no hay ningún ejecutable
+que descargar.
 
 #### Claude Desktop: el paquete
 

@@ -20,17 +20,17 @@ hardware problems in plain words.
 
 ## Install
 
-In a Claude Code session:
-
-```
-/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
-```
-
-Or from a shell:
+From a shell:
 
 ```
 claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
+```
+
+Or inside a Claude Code session, with version 2.1.275 or later:
+
+```
+/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
 ```
 
 If you had already added the server by hand with `claude mcp add`, remove that

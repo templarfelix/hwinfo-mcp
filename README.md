@@ -94,20 +94,21 @@ Pick the way that fits your client.
 
 The plugin brings the server together with three
 [skills](#skills-that-come-with-the-plugin) that give the assistant a method
-for reading the sensors. In a Claude Code session:
-
-```
-/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
-```
-
-Or from a shell:
+for reading the sensors. From a shell:
 
 ```
 claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-Nothing else needs downloading: the plugin carries its own copy of the server.
+Or inside a Claude Code session, with version 2.1.275 or later:
+
+```
+/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
+```
+
+The plugin carries its own copy of the server, so there is no executable to
+download.
 
 #### Claude Desktop: the bundle
 
