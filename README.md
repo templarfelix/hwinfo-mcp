@@ -1,19 +1,32 @@
 # hwinfo-mcp
 
-A read-only [Model Context Protocol](https://modelcontextprotocol.io) server that
-lets an AI assistant read the hardware sensors [HWiNFO](https://www.hwinfo.com)
-monitors on a Windows PC: temperatures, voltages, fan speeds, power draw, clocks
-and usage.
+Ask an AI assistant about your PC's hardware, and let it read the real sensors.
+
+hwinfo-mcp is a read-only [Model Context Protocol](https://modelcontextprotocol.io)
+server that gives an assistant such as Claude access to everything
+[HWiNFO](https://www.hwinfo.com) monitors on a Windows PC: temperatures,
+voltages, fan speeds, power draw, clocks, usage, drive health and hardware
+error counters.
+
+That makes it a tool for finding hardware problems. Instead of scanning
+hundreds of rows in HWiNFO yourself, you ask:
+
+> Is my CPU overheating? Check the current and peak temperatures and whether it
+> has throttled.
+
+The assistant reads the sensors, compares the current values with the peaks
+HWiNFO has recorded, and tells you what it sees.
 
 It is a single executable that speaks MCP over stdin/stdout. It reads the block
 of memory HWiNFO shares with other programs and never writes to it, opens no
 network connection and changes nothing on the system.
 
-## Requirements
+## Quick start
 
-- Windows with HWiNFO64 running and its **Sensors** window open (minimized to
-  the tray is fine).
-- **Shared Memory Support** enabled in HWiNFO's settings (General / User
+### 1. Prepare HWiNFO
+
+- Run HWiNFO64 with its **Sensors** window open (minimized to the tray is fine).
+- Enable **Shared Memory Support** in HWiNFO's settings (General / User
   Interface).
 
 Two things to know about that option:
@@ -22,25 +35,50 @@ Two things to know about that option:
   shared memory only appeared after a restart on the machine this was
   developed on.
 - The free edition of HWiNFO switches it off again after 12 hours. Re-enable
-  it or restart HWiNFO when that happens; `hwinfo_status` tells you.
+  it or restart HWiNFO when that happens; the assistant can tell you, see
+  [Troubleshooting](#troubleshooting).
 
-## Install
+### 2. Get the server
 
-Download `hwinfo-mcp-windows-amd64.exe` from the releases page, or build it:
+Download the executable from the
+[latest release](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
+In PowerShell:
 
-```
-go build -trimpath -ldflags "-s -w" -o %USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe .
-```
-
-Then register it with your MCP client.
-
-Claude Code:
-
-```
-claude mcp add --scope user hwinfo -- %USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe
+```powershell
+$dir = "$env:USERPROFILE\tools\hwinfo-mcp"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest "https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-windows-amd64.exe" -OutFile "$dir\hwinfo-mcp.exe"
 ```
 
-Claude Desktop, in `claude_desktop_config.json`:
+On Windows on Arm, take `hwinfo-mcp-windows-arm64.exe` instead. To check the
+download, compare `Get-FileHash "$dir\hwinfo-mcp.exe"` with the `SHA256SUMS`
+file of the release. The executable is not code-signed, so a browser or Windows
+may warn about it.
+
+Or build it yourself with Go:
+
+```
+go install github.com/templarfelix/hwinfo-mcp@latest
+```
+
+That puts `hwinfo-mcp.exe` in Go's bin folder, normally `%USERPROFILE%\go\bin`;
+use that path in the next step.
+
+### 3. Connect it to your assistant
+
+**Claude Code** (PowerShell):
+
+```powershell
+claude mcp add --scope user hwinfo -- "$env:USERPROFILE\tools\hwinfo-mcp\hwinfo-mcp.exe"
+claude mcp get hwinfo
+```
+
+The second command should report `Connected`. In `cmd.exe`, write the path as
+`%USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe`. Start a new session
+afterwards; one that was already open may not see the server yet.
+
+**Claude Desktop**: add the server to `claude_desktop_config.json` and restart
+the app.
 
 ```json
 {
@@ -52,19 +90,132 @@ Claude Desktop, in `claude_desktop_config.json`:
 }
 ```
 
+**Any other MCP client** that can start a stdio server works the same way: the
+command is the path to the executable, with no arguments.
+
+### 4. Check that it works
+
+Ask the assistant:
+
+> Is HWiNFO publishing sensor data?
+
+It calls `hwinfo_status` and should answer that the sensors are active and how
+fresh the last reading is. If not, the answer says what is wrong and how to fix
+it.
+
+## Asking questions
+
+You do not call the tools yourself. Ask in plain words, in any language; the
+assistant picks the tool and the filters. A few to start with:
+
+- How hot are my CPU and GPU right now?
+- What are my fan speeds?
+- How much power are the processor and the graphics card drawing?
+- Which sensors does HWiNFO see on this PC?
+
+### Hunting hardware problems
+
+| You suspect | Ask something like | What the assistant reads |
+|---|---|---|
+| The CPU overheats | *Is my CPU overheating? Compare the current temperature with the peak and tell me if it throttled.* | The CPU's control temperature (Tctl/Tdie or package) with minimum, maximum and average, the per-CCD and hottest-core temperatures, package power and the thermal throttling flags. |
+| Performance drops under load | *Is anything holding my CPU or GPU back? Look at the thermal, power and current limits.* | Readings such as `Thermal Limit`, `CPU PPT Limit`, `Thermal Throttling (HTC)` and the GPU's `Performance Limit - Thermal` and `Performance Limit - Power`. |
+| The graphics card runs hot, or its paste and pads are worn | *Compare my GPU's hot spot with its core temperature, and check the memory temperature.* | GPU core, hot spot and memory junction temperatures, board power and fan speeds. |
+| A fan has died or stalls | *Are all fans spinning? Show the current, lowest and highest speed of each.* | Every fan reading with its statistics. |
+| Shutdowns or restarts under load | *My PC restarts when I game. Check temperatures, the 12 V, 5 V and 3.3 V rails, and the hardware error counters.* | Temperatures, the mainboard's voltage readings with their minimum and maximum, and the Windows hardware error (WHEA) count. |
+| A drive is failing | *How healthy is my SSD?* | The S.M.A.R.T. sensor: remaining life, available spare, failure and warning flags, temperature. |
+| Unstable memory or overclock | *Any sign of memory trouble? Check the DIMM temperatures and flags, and hardware errors.* | The DIMM sensors (temperature, voltages, PMIC flags) and the WHEA count. |
+| A bad PCIe slot, riser or cable | *Does my graphics card report PCIe errors?* | The error counters of the GPU sensor. |
+
+Which of these readings exist depends on your hardware and on what HWiNFO
+supports for it. Ask the assistant to list the sensors to see what your PC
+offers.
+
+### Seeing what happens under load
+
+HWiNFO keeps the minimum, maximum and average of every reading since it started
+(or since you last reset them in its Sensors window). That turns two questions
+into a load test:
+
+1. While the PC is idle, ask for a thermal overview.
+2. Run the game, render or stress test that causes trouble.
+3. Ask again: *What were the peak CPU and GPU temperatures and power draw, and
+   did anything throttle?*
+
+### Getting good answers
+
+- Ask for the peak, not only the current value. A CPU that sits at 60 °C now
+  may have reached its limit ten minutes ago.
+- Say what was running. A peak means little without the load behind it: 95 °C
+  during a render is a different finding from 95 °C while browsing.
+- Name the part you mean: "GPU", "SSD", "DIMM", "mainboard". The assistant
+  then reads fewer, more relevant readings.
+- If the assistant says sensor data is unavailable, ask it to check the HWiNFO
+  status.
+- The server reports what HWiNFO measures. What the assistant concludes from
+  the numbers is its own judgement: use it as a lead to check, not as a
+  diagnosis.
+
+### What an answer is built from
+
+This is part of what `thermal_overview` returned on the development machine,
+shortened. The CPU is at 61.75 °C now, peaked at 95.4 °C since HWiNFO started,
+and no throttling flag was raised:
+
+```json
+{
+  "active": true,
+  "last_update": "2026-11-23T19:01:38-03:00",
+  "cpus": [
+    {
+      "name": "AMD Ryzen 9 9950X3D",
+      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 61.75, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 70.259 },
+      "package_power": { "label": "CPU Package Power", "value": 84.284, "unit": "W", "min": 55.714, "max": 237.232, "avg": 129.425 },
+      "thermal_throttling": { "active": false, "occurred": false }
+    }
+  ],
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 5080",
+      "temperature": { "label": "GPU Temperature", "value": 48.434, "unit": "°C", "min": 37.316, "max": 67.414, "avg": 51.215 },
+      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 53.531, "unit": "°C", "min": 41.5, "max": 86.031, "avg": 59.193 },
+      "thermal_throttling": { "active": false, "occurred": false }
+    }
+  ]
+}
+```
+
 ## Tools
 
 | Tool | What it returns |
 |---|---|
 | `hwinfo_status` | Whether HWiNFO is publishing, when it last polled, how many sensors and readings there are, and whether the snapshot was taken under HWiNFO's lock. When something is wrong it says what and how to fix it. |
 | `list_sensors` | Every sensor with the number of readings of each type. |
-| `get_readings` | Current readings grouped by sensor. Filters: `sensor` and `label` (case-insensitive substrings), `types` (`temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other`), and `stats` to add minimum, maximum and average. |
+| `get_readings` | Current readings grouped by sensor, narrowed by the filters below. |
 | `thermal_overview` | The readings that say how hot the PC runs: per CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power and throttling flags; per GPU the core, hot spot and memory junction temperatures, board power, fans and thermal limit flag; plus the remaining temperatures and fan speeds. |
 
-All four are annotated as read-only. A PC has several hundred readings (484 on
-the development machine), and one `get_readings` call returns at most 300 of
-them: when more match, `truncated` is set and `matched` gives the total, so
-narrow the filters to see the rest.
+All four are annotated as read-only, and only `get_readings` takes arguments,
+all of them optional:
+
+| Argument | Meaning |
+|---|---|
+| `sensor` | Part of a sensor name, in any letter case: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
+| `label` | Part of a reading label, in any letter case: `Temperature`, `Tctl`, `Limit` |
+| `types` | Reading types to include, any of `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
+| `stats` | `true` to add the minimum, maximum and average |
+
+For example, the GPU's temperatures and fans with their statistics:
+
+```json
+{ "sensor": "GPU", "types": ["temperature", "fan"], "stats": true }
+```
+
+About the output:
+
+- A PC has several hundred readings (484 on the development machine), and one
+  `get_readings` call returns at most 300 of them. When more match, `truncated`
+  is set and `matched` gives the total, so narrow the filters to see the rest.
+- Flags that HWiNFO shows as Yes/No come as `1` or `0` with the unit `Yes/No`.
+- A `value` is `null` when HWiNFO holds no number for the reading.
 
 ### What the client gets to see
 
@@ -91,32 +242,42 @@ On every tool call the server opens the mapping `Global\HWiNFO_SENS_SM2`
 read-only, maps it, and copies the part in use. While copying it holds HWiNFO's
 mutex `Global\HWiNFO_SM2_MUTEX` (waiting at most 200 ms for it), so that the
 copy cannot be half-updated; if the mutex cannot be had it copies anyway and
-checks that the block still reads the same afterwards. Everything is released before
-the call returns. Offsets and sizes come from the block's header and are
+checks that the block still reads the same afterwards. Everything is released
+before the call returns. Offsets and sizes come from the block's header and are
 checked against the size of the mapping before anything is read.
 
 ## Troubleshooting
 
-`hwinfo_status` reports the cause. The usual ones:
+Ask the assistant to check the HWiNFO status: `hwinfo_status` reports the
+cause. The usual ones:
 
 | Problem | Cause |
 |---|---|
 | shared memory not found | HWiNFO is not running, the Sensors window is closed, Shared Memory Support is off, or it was enabled without restarting HWiNFO. |
 | `active: false`, values stale | The Sensors window was closed or the free edition's 12-hour limit was reached. |
 | access denied | HWiNFO and the MCP client run at different integrity levels. |
+| the assistant has no hwinfo tools | The client was not restarted after the server was added, or the path to the executable is wrong. In Claude Code, `claude mcp get hwinfo` shows the path and whether it connects. |
 
 ## What has been verified
 
 The server was validated against HWiNFO64 8.60 on a Ryzen 9 9950X3D with a
-GeForce RTX 5080, with HWiNFO running in Portuguese. The labels of that machine
-are kept as a test fixture (`internal/hwinfo/testdata`), and the first pattern
-of every `thermal_overview` field is covered by a regression test built from it.
+GeForce RTX 5080, with HWiNFO running in Portuguese, and used from Claude Code.
+The labels of that machine are kept as a test fixture
+(`internal/hwinfo/testdata`), and the first pattern of every `thermal_overview`
+field is covered by a regression test built from it.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If
 `thermal_overview` misses a reading on your system, `get_readings` still returns
 it, and the patterns live in `internal/hwinfo/filter.go` (`cpuLabel`,
 `gpuLabel`).
+
+## Questions and bug reports
+
+Open an [issue](https://github.com/templarfelix/hwinfo-mcp/issues). If
+`thermal_overview` picks the wrong reading or misses one on your hardware, the
+output of `list_sensors` and of `get_readings` for the CPU or GPU sensor is what
+it takes to fix it. Remove serial numbers from it first.
 
 ## Development
 
@@ -134,6 +295,7 @@ toolchain on its own, and CI reads it from the same file.
 go vet ./...
 go test -race ./...
 go test -run '^$' -fuzz FuzzParse -fuzztime 30s ./internal/hwinfo
+go build -trimpath -ldflags "-s -w" -o hwinfo-mcp.exe .
 ```
 
 The race detector needs a C compiler; on a Windows machine without one, run
