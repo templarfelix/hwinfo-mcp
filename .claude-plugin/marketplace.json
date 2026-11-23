@@ -1,0 +1,29 @@
+{
+  "name": "hwinfo-mcp",
+  "owner": {
+    "name": "Fernando Luís da Silva",
+    "url": "https://github.com/templarfelix"
+  },
+  "description": "HWiNFO hardware sensors for Claude, with skills for judging temperatures and hardware health on a Windows PC.",
+  "plugins": [
+    {
+      "name": "hwinfo",
+      "displayName": "HWiNFO sensors",
+      "description": "Lets Claude read the hardware sensors HWiNFO monitors on a Windows PC and judge temperatures, throttling, drive health and hardware errors. Windows only.",
+      "author": {
+        "name": "Fernando Luís da Silva",
+        "url": "https://github.com/templarfelix"
+      },
+      "homepage": "https://github.com/templarfelix/hwinfo-mcp",
+      "repository": "https://github.com/templarfelix/hwinfo-mcp",
+      "license": "MIT",
+      "keywords": ["hwinfo", "hardware", "sensors", "temperature", "thermal", "windows", "mcp"],
+      "category": "hardware",
+      "source": {
+        "source": "archive",
+        "url": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.2.0/hwinfo-plugin.zip",
+        "sha256": "04c7bf537218bf21d8c0d7e7c477f8a34c08e9825dddf621e2285d16b109daf7"
+      }
+    }
+  ]
+}

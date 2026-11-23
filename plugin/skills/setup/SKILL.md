@@ -24,7 +24,7 @@ Call `hwinfo_status` and read `available`, `active`, `problem` and `hint`.
 
 ## 2. Walk the user through the settings
 
-1. Install HWiNFO64 from https://www.hwinfo.com/download/ and start it. It asks for administrator rights, which it needs to reach the hardware.
+1. Install HWiNFO64 from https://www.hwinfo.com/download/, or with `winget install REALiX.HWiNFO`, and start it. It asks for administrator rights, which it needs to reach the hardware. HWiNFO is a separate program under its own licence; this plugin does not include it.
 2. On the welcome screen, tick **Sensors-only** and click **Settings**. If HWiNFO is already running, the same settings are in the menu of its icon in the notification area.
 3. On the **General / User Interface** tab, enable:
    - **Shared Memory Support**. This is the one that matters.

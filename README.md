@@ -33,10 +33,12 @@ Windows side.
 ### 1. Set up HWiNFO
 
 HWiNFO does the measuring; this server only reads what HWiNFO publishes.
-Publishing is off by default, so it has to be switched on once.
+HWiNFO is a separate program under its own licence and is not included here.
+Its publishing is off by default, so it has to be switched on once.
 
-1. Install [HWiNFO64](https://www.hwinfo.com/download/) and start it. It asks
-   for administrator rights, which it needs to reach the hardware.
+1. Install [HWiNFO64](https://www.hwinfo.com/download/), or run
+   `winget install REALiX.HWiNFO`, and start it. It asks for administrator
+   rights, which it needs to reach the hardware.
 2. On the welcome screen, tick **Sensors-only** and click **Settings**. Later,
    the same settings are in the menu of HWiNFO's icon in the notification area.
 3. On the **General / User Interface** tab, enable these options:
@@ -84,7 +86,38 @@ Support off after 12 hours of run time, and it then has to be enabled again in
 the settings. HWiNFO Pro has no such limit. When the readings stop, the
 assistant can tell you why; see [Troubleshooting](#troubleshooting).
 
-### 2. Get the server
+### 2. Install it
+
+Pick the way that fits your client.
+
+#### Claude Code: the plugin
+
+The plugin brings the server together with three
+[skills](#skills-that-come-with-the-plugin) that give the assistant a method
+for reading the sensors. In a Claude Code session:
+
+```
+/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
+```
+
+Or from a shell:
+
+```
+claude plugin marketplace add templarfelix/hwinfo-mcp
+claude plugin install hwinfo@hwinfo-mcp
+```
+
+Nothing else needs downloading: the plugin carries its own copy of the server.
+
+#### Claude Desktop: the bundle
+
+Download
+[`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
+and open it, or drag it into Claude Desktop. The bundle is new in v0.2.0 and
+has so far only been checked with the bundle tool itself. If it does not
+install, use the executable as described next, and please open an issue.
+
+#### Any MCP client: the executable
 
 Download the executable from the
 [latest release](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
@@ -108,9 +141,9 @@ go install github.com/templarfelix/hwinfo-mcp@latest
 ```
 
 That puts `hwinfo-mcp.exe` in Go's bin folder, normally `%USERPROFILE%\go\bin`;
-use that path in the next step.
+use that path below.
 
-### 3. Connect it to your assistant
+Then register the executable with your client.
 
 **Claude Code** (PowerShell):
 
@@ -139,7 +172,7 @@ the app.
 **Any other MCP client** that can start a stdio server works the same way: the
 command is the path to the executable, with no arguments.
 
-### 4. Check that it works
+### 3. Check that it works
 
 Ask the assistant:
 
@@ -158,6 +191,20 @@ assistant picks the tool and the filters. A few to start with:
 - What are my fan speeds?
 - How much power are the processor and the graphics card drawing?
 - Which sensors does HWiNFO see on this PC?
+
+### Skills that come with the plugin
+
+The plugin adds three skills. The assistant uses them on its own when a
+question calls for one, and you can also start one by name:
+
+| Skill | What it does |
+|---|---|
+| `/hwinfo:thermal-check` | Judges whether the CPU or graphics card runs too hot, is held back by temperature, or needs new thermal paste or pads. It works from temperature and power read at the same moment, under load, and says what the sensors cannot show. |
+| `/hwinfo:hardware-checkup` | Goes through hardware error counters, drive health, voltages, fans, memory and limits, and reports what needs attention, what is fine and what could not be checked. |
+| `/hwinfo:setup` | Gets HWiNFO publishing its readings, or explains why they stopped. |
+
+Without the plugin the same questions work; the assistant then has the tools
+but not the method.
 
 ### Hunting hardware problems
 
@@ -312,6 +359,12 @@ The labels of that machine are kept as a test fixture
 (`internal/hwinfo/testdata`), and the first pattern of every `thermal_overview`
 field is covered by a regression test built from it.
 
+The plugin was installed in Claude Code 2.1.319 through the marketplace, from
+the published release: the download matches its checksum, its server connects,
+and its tools and skills register. The MCP bundle was validated and packed with
+the official `mcpb` tool, but had not been installed in Claude Desktop when
+v0.2.0 was released.
+
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If
 `thermal_overview` misses a reading on your system, `get_readings` still returns
@@ -327,15 +380,16 @@ it takes to fix it. Remove serial numbers from it first.
 
 ## Development
 
-The Go version is pinned in `.tool-versions`. With [asdf](https://asdf-vm.com)
-and its `golang` plugin, this installs it:
+The tool versions are pinned in `.tool-versions`: Go, and Node.js for packing
+the MCP bundle. With [asdf](https://asdf-vm.com) and its `golang` and `nodejs`
+plugins, this installs them:
 
 ```
 asdf install
 ```
 
-`go.mod` asks for the same version, so a different Go release fetches that
-toolchain on its own, and CI reads it from the same file.
+`go.mod` asks for the same Go version, so a different Go release fetches that
+toolchain on its own, and CI reads both versions from the same file.
 
 ```
 go vet ./...
@@ -355,10 +409,28 @@ The race detector needs a C compiler; on a Windows machine without one, run
 | `internal/hwinfo/read_windows.go` | Opening, locking and copying the shared memory. |
 | `internal/hwinfo/filter.go` | Filtering and the thermal overview heuristics. |
 | `internal/hwinfo/hwinfotest` | Builds synthetic shared memory blocks for tests. |
+| `plugin/` | The Claude Code plugin: manifest, MCP configuration and skills. |
+| `mcpb/` | The MCP bundle's manifest and the MCP Registry entry. |
+| `tools/release` | Builds and packs every file of a release. |
+| `.claude-plugin/marketplace.json` | The marketplace entry, which points at the plugin of the latest release. |
 
 Dependencies are the Go standard library, `golang.org/x/sys` and the official
 MCP Go SDK.
 
+### Releasing
+
+1. Push a tag such as `v1.2.3`. CI runs `go run ./tools/release` and attaches
+   the executables, the plugin, the bundle, `server.json` and `SHA256SUMS` to
+   the release. The same command run by hand builds the same files into
+   `dist/`, which is how to try them before tagging:
+   `claude --plugin-dir dist/hwinfo-plugin.zip` loads the plugin for one
+   session.
+2. Once the release is published, point `.claude-plugin/marketplace.json` at
+   the new `hwinfo-plugin.zip`: its URL, and its SHA-256 from the release's
+   `SHA256SUMS`. Plugin users get the update from that commit.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+This project is not affiliated with HWiNFO or its authors.
