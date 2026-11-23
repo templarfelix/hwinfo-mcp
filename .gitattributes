@@ -1,0 +1,3 @@
+# Keep LF line endings everywhere, also in Windows checkouts: gofmt expects it.
+* text=auto eol=lf
+*.exe binary

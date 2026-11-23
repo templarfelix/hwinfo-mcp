@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu covers the portable code (parser, filters, MCP server);
+        # windows adds the shared-memory reader, which only compiles there.
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      # The release is built for Windows on a Linux runner. Compiling both
+      # targets on every push keeps a tag from being the first to find out.
+      - name: Cross-compile for Windows
+        if: runner.os == 'Linux'
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+        run: |
+          GOARCH=amd64 go vet ./...
+          GOARCH=amd64 go build ./...
+          GOARCH=arm64 go build ./...
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release and upload its files
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+        run: |
+          mkdir dist
+          for arch in amd64 arm64; do
+            GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o "dist/hwinfo-mcp-windows-${arch}.exe" .
+          done
+          cd dist
+          sha256sum *.exe > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

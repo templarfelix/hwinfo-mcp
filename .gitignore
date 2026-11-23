@@ -1,0 +1,6 @@
+# Build output
+/hwinfo-mcp
+/hwinfo-mcp.exe
+/dist/
+*.test
+*.out
