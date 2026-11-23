@@ -49,6 +49,9 @@ Publishing is off by default, so it has to be switched on once.
    | **Minimize Sensors instead of closing** | Closing the Sensors window by accident does not stop the readings. |
    | **Auto Start** | HWiNFO starts with Windows, so the readings are always there. |
 
+   And switch off **Show Welcome Screen and Progress**, so that HWiNFO does not
+   stop at the welcome screen every time it starts.
+
 4. Confirm with **OK**, then restart HWiNFO: close it from its notification
    area icon and start it again. On the machine this was developed on, the
    readings were only published after that restart.
@@ -56,15 +59,17 @@ Publishing is off by default, so it has to be switched on once.
 From then on HWiNFO only needs to be running, with its Sensors window open or
 minimized to the notification area.
 
-The option names are those of the English interface; HWiNFO translates them
-when it runs in another language. In any language you can check the result in
-`HWiNFO64.INI`, in HWiNFO's folder (normally `C:\Program Files\HWiNFO64`).
-With the options above it contains:
+The labels may read a little differently in your version of HWiNFO, and they
+are translated when HWiNFO runs in another language. The settings file is the
+same either way: `HWiNFO64.INI`, in HWiNFO's folder (normally
+`C:\Program Files\HWiNFO64`). This is the configuration the server was
+developed and tested with:
 
 ```ini
 [Settings]
 SensorsOnly=1
 SensorsSM=1
+ShowWelcomeAndProgress=0
 OpenSensors=1
 MinimalizeMainWnd=1
 MinimalizeSensors=1

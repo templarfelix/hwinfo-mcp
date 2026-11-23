@@ -51,6 +51,9 @@ publicación viene desactivada, así que hay que activarla una vez.
    | **Minimize Sensors instead of closing** | Cerrar la ventana de sensores por accidente no detiene las lecturas. |
    | **Auto Start** | HWiNFO arranca con Windows, así que las lecturas siempre están disponibles. |
 
+   Y desactiva **Show Welcome Screen and Progress**, para que HWiNFO no se
+   detenga en la pantalla inicial cada vez que arranca.
+
 4. Confirma con **OK** y reinicia HWiNFO: ciérralo desde su icono del área de
    notificación y ábrelo de nuevo. En la máquina donde se desarrolló este
    proyecto, las lecturas solo empezaron a publicarse después de ese reinicio.
@@ -58,15 +61,17 @@ publicación viene desactivada, así que hay que activarla una vez.
 A partir de ahí basta con que HWiNFO esté en ejecución, con la ventana de
 sensores abierta o minimizada en el área de notificación.
 
-Los nombres de las opciones son los de la interfaz en inglés; HWiNFO los
-traduce cuando se ejecuta en otro idioma. En cualquier idioma puedes comprobar
-el resultado en `HWiNFO64.INI`, en la carpeta de HWiNFO (normalmente
-`C:\Program Files\HWiNFO64`). Con las opciones anteriores contiene:
+Las etiquetas pueden verse algo distintas en tu versión de HWiNFO, y se
+traducen cuando HWiNFO se ejecuta en otro idioma. El archivo de configuración
+es el mismo en cualquier caso: `HWiNFO64.INI`, en la carpeta de HWiNFO
+(normalmente `C:\Program Files\HWiNFO64`). Esta es la configuración con la que
+se desarrolló y probó el servidor:
 
 ```ini
 [Settings]
 SensorsOnly=1
 SensorsSM=1
+ShowWelcomeAndProgress=0
 OpenSensors=1
 MinimalizeMainWnd=1
 MinimalizeSensors=1
