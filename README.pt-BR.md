@@ -1,0 +1,366 @@
+# hwinfo-mcp
+
+[English](README.md) · **Português (Brasil)** · [Español](README.es.md)
+
+Pergunte a um assistente de IA sobre o hardware do seu PC e deixe que ele leia
+os sensores de verdade.
+
+O hwinfo-mcp é um servidor [Model Context Protocol](https://modelcontextprotocol.io)
+somente leitura. Ele dá a um assistente como o Claude acesso a tudo o que o
+[HWiNFO](https://www.hwinfo.com) monitora em um PC com Windows: temperaturas,
+tensões, rotação das ventoinhas, consumo de energia, frequências, uso, saúde
+dos discos e contadores de erros de hardware.
+
+Isso faz dele uma ferramenta para encontrar problemas de hardware. Em vez de
+percorrer centenas de linhas no HWiNFO, você pergunta:
+
+> Minha CPU está superaquecendo? Veja a temperatura atual, o pico e se ela
+> chegou a limitar o desempenho.
+
+O assistente lê os sensores, compara os valores atuais com os picos que o
+HWiNFO registrou e diz o que encontrou.
+
+É um único executável que fala MCP por stdin/stdout. Ele lê o bloco de memória
+que o HWiNFO compartilha com outros programas e nunca escreve nele, não abre
+conexão de rede e não altera nada no sistema.
+
+**Somente Windows.** O HWiNFO só existe para Windows, e a memória compartilhada
+que este servidor lê também, por isso as releases são para Windows em x64 e em
+Arm. O Linux dentro do WSL 2 tampouco enxerga os chips de sensores do PC:
+execute o servidor do lado do Windows.
+
+## Início rápido
+
+### 1. Configure o HWiNFO
+
+Quem mede é o HWiNFO; este servidor só lê o que o HWiNFO publica. Essa
+publicação vem desligada, então é preciso ligá-la uma vez.
+
+1. Instale o [HWiNFO64](https://www.hwinfo.com/download/) e abra-o. Ele pede
+   permissão de administrador, necessária para acessar o hardware.
+2. Na tela inicial, marque **Sensors-only** (somente sensores) e clique em
+   **Settings** (configurações). Depois, as mesmas configurações ficam no menu
+   do ícone do HWiNFO na área de notificação.
+3. Na aba **General / User Interface**, ative estas opções:
+
+   | Opção | Para quê |
+   |---|---|
+   | **Shared Memory Support** | Obrigatória. Faz o HWiNFO publicar as leituras para outros programas. |
+   | **Show Sensors on Startup** | As leituras só são publicadas enquanto os sensores estão rodando. |
+   | **Minimize Sensors on Startup**, **Minimize Main Window on Startup** | O HWiNFO já abre direto na área de notificação. |
+   | **Minimize Sensors instead of closing** | Fechar a janela de sensores sem querer não interrompe as leituras. |
+   | **Auto Start** | O HWiNFO inicia junto com o Windows, então as leituras estão sempre disponíveis. |
+
+4. Confirme com **OK** e reinicie o HWiNFO: feche-o pelo ícone da área de
+   notificação e abra de novo. Na máquina em que este projeto foi desenvolvido,
+   as leituras só passaram a ser publicadas depois desse reinício.
+
+Daí em diante, basta o HWiNFO estar rodando, com a janela de sensores aberta
+ou minimizada na área de notificação.
+
+Os nomes das opções são os da interface em inglês; o HWiNFO os traduz quando
+roda em outro idioma (em português, a janela de sensores se chama "Estado dos
+sensores"). Em qualquer idioma dá para conferir o resultado no arquivo
+`HWiNFO64.INI`, na pasta do HWiNFO (normalmente `C:\Program Files\HWiNFO64`).
+Com as opções acima, ele contém:
+
+```ini
+[Settings]
+SensorsOnly=1
+SensorsSM=1
+OpenSensors=1
+MinimalizeMainWnd=1
+MinimalizeSensors=1
+MinimalizeSensorsClose=1
+Autorun=1
+```
+
+`SensorsSM=1` é o Shared Memory Support, a opção que importa.
+
+**O limite de 12 horas.** A edição gratuita do HWiNFO desliga o Shared Memory
+Support depois de 12 horas de execução, e então é preciso ativá-lo de novo nas
+configurações. O HWiNFO Pro não tem esse limite. Quando as leituras pararem, o
+assistente sabe dizer o motivo; veja [Solução de problemas](#solução-de-problemas).
+
+### 2. Baixe o servidor
+
+Baixe o executável da
+[release mais recente](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
+No PowerShell:
+
+```powershell
+$dir = "$env:USERPROFILE\tools\hwinfo-mcp"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest "https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-windows-amd64.exe" -OutFile "$dir\hwinfo-mcp.exe"
+```
+
+No Windows em Arm, use `hwinfo-mcp-windows-arm64.exe`. Para conferir o
+download, compare `Get-FileHash "$dir\hwinfo-mcp.exe"` com o arquivo
+`SHA256SUMS` da release. O executável não tem assinatura de código, então o
+navegador ou o Windows podem exibir um aviso.
+
+Ou compile você mesmo com Go:
+
+```
+go install github.com/templarfelix/hwinfo-mcp@latest
+```
+
+Isso coloca o `hwinfo-mcp.exe` na pasta bin do Go, normalmente
+`%USERPROFILE%\go\bin`; use esse caminho no próximo passo.
+
+### 3. Conecte ao seu assistente
+
+**Claude Code** (PowerShell):
+
+```powershell
+claude mcp add --scope user hwinfo -- "$env:USERPROFILE\tools\hwinfo-mcp\hwinfo-mcp.exe"
+claude mcp get hwinfo
+```
+
+O segundo comando deve mostrar `Connected`. No `cmd.exe`, escreva o caminho
+como `%USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe`. Abra uma sessão nova
+depois; uma que já estava aberta pode ainda não enxergar o servidor.
+
+**Claude Desktop**: adicione o servidor ao `claude_desktop_config.json` e
+reinicie o aplicativo.
+
+```json
+{
+  "mcpServers": {
+    "hwinfo": {
+      "command": "C:\\Users\\voce\\tools\\hwinfo-mcp\\hwinfo-mcp.exe"
+    }
+  }
+}
+```
+
+**Qualquer outro cliente MCP** que consiga iniciar um servidor stdio funciona
+do mesmo jeito: o comando é o caminho do executável, sem argumentos.
+
+### 4. Confira se funcionou
+
+Pergunte ao assistente:
+
+> O HWiNFO está publicando os dados dos sensores?
+
+Ele chama `hwinfo_status` e deve responder que os sensores estão ativos e de
+quando é a última leitura. Se não estiverem, a resposta diz o que há de errado
+e como corrigir.
+
+## Como perguntar
+
+Você não chama as ferramentas diretamente. Pergunte com suas palavras, em
+qualquer idioma; o assistente escolhe a ferramenta e os filtros. Alguns
+exemplos para começar:
+
+- Qual é a temperatura da minha CPU e da minha GPU agora?
+- Em que rotação estão as ventoinhas?
+- Quanta energia o processador e a placa de vídeo estão consumindo?
+- Quais sensores o HWiNFO enxerga neste PC?
+
+### Caçando problemas de hardware
+
+| Suspeita | Pergunte algo como | O que o assistente lê |
+|---|---|---|
+| A CPU está superaquecendo | *Minha CPU está superaquecendo? Compare a temperatura atual com o pico e diga se houve throttling.* | A temperatura de controle da CPU (Tctl/Tdie ou do encapsulamento) com mínimo, máximo e média, as temperaturas por CCD e do núcleo mais quente, a potência do encapsulamento e os indicadores de throttling térmico. |
+| O desempenho cai sob carga | *Alguma coisa está segurando minha CPU ou GPU? Veja os limites térmicos, de potência e de corrente.* | Leituras como `Thermal Limit`, `CPU PPT Limit`, `Thermal Throttling (HTC)` e, na GPU, `Performance Limit - Thermal` e `Performance Limit - Power`. |
+| A placa de vídeo esquenta demais, ou a pasta e os pads térmicos estão gastos | *Compare o hot spot da GPU com a temperatura do núcleo e confira a temperatura da memória.* | Temperaturas do núcleo, do hot spot e da junção da memória da GPU, a potência da placa e a rotação das ventoinhas. |
+| Uma ventoinha morreu ou trava | *Todas as ventoinhas estão girando? Mostre a rotação atual, a menor e a maior de cada uma.* | Todas as leituras de ventoinha, com as estatísticas. |
+| O PC desliga ou reinicia sob carga | *Meu PC reinicia quando eu jogo. Confira as temperaturas, as linhas de 12 V, 5 V e 3,3 V e os contadores de erro de hardware.* | Temperaturas, as tensões da placa-mãe com mínimo e máximo, e a contagem de erros de hardware do Windows (WHEA). |
+| Um disco está falhando | *Como está a saúde do meu SSD?* | O sensor S.M.A.R.T.: vida útil restante, reserva disponível, indicadores de falha e de aviso, temperatura. |
+| Memória ou overclock instável | *Há algum sinal de problema de memória? Confira a temperatura e os indicadores dos módulos e os erros de hardware.* | Os sensores dos módulos de memória (temperatura, tensões, indicadores do PMIC) e a contagem WHEA. |
+| Slot PCIe, riser ou cabo com defeito | *Minha placa de vídeo registra erros de PCIe?* | Os contadores de erro do sensor da GPU. |
+
+Quais dessas leituras existem depende do seu hardware e do que o HWiNFO suporta
+nele. Peça ao assistente para listar os sensores e veja o que o seu PC oferece.
+
+### Vendo o que acontece sob carga
+
+O HWiNFO guarda o mínimo, o máximo e a média de cada leitura desde que foi
+aberto (ou desde a última vez que você os zerou na janela de sensores). Isso
+transforma duas perguntas em um teste de carga:
+
+1. Com o PC ocioso, peça um panorama térmico.
+2. Rode o jogo, a renderização ou o teste de estresse que causa o problema.
+3. Pergunte de novo: *Quais foram os picos de temperatura e de consumo da CPU e
+   da GPU, e alguma coisa limitou o desempenho?*
+
+### Para ter boas respostas
+
+- Peça o pico, não só o valor atual. Uma CPU que está a 60 °C agora pode ter
+  chegado ao limite dez minutos atrás.
+- Diga o que estava rodando. Um pico significa pouco sem a carga por trás dele:
+  95 °C durante uma renderização é um achado diferente de 95 °C navegando.
+- Diga de qual peça você está falando: "GPU", "SSD", "memória", "placa-mãe". O
+  assistente então lê menos leituras, e mais relevantes.
+- Se o assistente disser que os dados dos sensores não estão disponíveis, peça
+  para ele verificar o status do HWiNFO.
+- O servidor informa o que o HWiNFO mede. O que o assistente conclui a partir
+  dos números é avaliação dele: use como pista a conferir, não como
+  diagnóstico.
+
+### Do que uma resposta é feita
+
+Este é um trecho, resumido, do que `thermal_overview` devolveu na máquina de
+desenvolvimento. A CPU está a 61,75 °C agora, chegou a 95,4 °C desde que o
+HWiNFO foi aberto, e nenhum indicador de throttling foi acionado:
+
+```json
+{
+  "active": true,
+  "last_update": "2026-11-23T19:01:38-03:00",
+  "cpus": [
+    {
+      "name": "AMD Ryzen 9 9950X3D",
+      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 61.75, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 70.259 },
+      "package_power": { "label": "CPU Package Power", "value": 84.284, "unit": "W", "min": 55.714, "max": 237.232, "avg": 129.425 },
+      "thermal_throttling": { "active": false, "occurred": false }
+    }
+  ],
+  "gpus": [
+    {
+      "name": "NVIDIA GeForce RTX 5080",
+      "temperature": { "label": "GPU Temperature", "value": 48.434, "unit": "°C", "min": 37.316, "max": 67.414, "avg": 51.215 },
+      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 53.531, "unit": "°C", "min": 41.5, "max": 86.031, "avg": 59.193 },
+      "thermal_throttling": { "active": false, "occurred": false }
+    }
+  ]
+}
+```
+
+## Ferramentas
+
+| Ferramenta | O que devolve |
+|---|---|
+| `hwinfo_status` | Se o HWiNFO está publicando, quando foi a última leitura, quantos sensores e leituras existem e se a cópia foi feita com a trava do HWiNFO. Quando algo está errado, diz o quê e como corrigir. |
+| `list_sensors` | Todos os sensores, com a quantidade de leituras de cada tipo. |
+| `get_readings` | As leituras atuais agrupadas por sensor, restritas pelos filtros abaixo. |
+| `thermal_overview` | As leituras que mostram o quanto o PC esquenta: por CPU, a temperatura de controle (Tctl/Tdie ou do encapsulamento), a média do die, as temperaturas por CCD, o núcleo mais quente, a potência do encapsulamento e os indicadores de throttling; por GPU, as temperaturas do núcleo, do hot spot e da junção da memória, a potência da placa, as ventoinhas e o indicador de limite térmico; além das demais temperaturas e rotações de ventoinhas. |
+
+As quatro são anotadas como somente leitura, e só `get_readings` recebe
+argumentos, todos opcionais:
+
+| Argumento | Significado |
+|---|---|
+| `sensor` | Parte do nome de um sensor, sem diferenciar maiúsculas: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
+| `label` | Parte do rótulo de uma leitura, sem diferenciar maiúsculas: `Temperature`, `Tctl`, `Limit` |
+| `types` | Tipos de leitura a incluir, entre `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
+| `stats` | `true` para incluir mínimo, máximo e média |
+
+Por exemplo, as temperaturas e as ventoinhas da GPU com as estatísticas:
+
+```json
+{ "sensor": "GPU", "types": ["temperature", "fan"], "stats": true }
+```
+
+Sobre a saída:
+
+- Um PC tem centenas de leituras (484 na máquina de desenvolvimento), e uma
+  chamada de `get_readings` devolve no máximo 300. Quando mais leituras
+  correspondem, `truncated` vem marcado e `matched` traz o total; restrinja os
+  filtros para ver o restante.
+- Indicadores que o HWiNFO mostra como Sim/Não vêm como `1` ou `0`, com a
+  unidade `Yes/No`.
+- Um `value` vem `null` quando o HWiNFO não tem número para a leitura.
+
+### O que o cliente enxerga
+
+O servidor repassa os nomes dos sensores do HWiNFO como eles são. Alguns trazem
+mais do que o modelo: o sensor de um disco inclui o número de série, e o sensor
+do PresentMon traz o nome do aplicativo que ele está observando. Um assistente
+que chama `list_sensors` ou `get_readings` recebe isso, como tudo o mais que lê.
+
+### Nomes e idiomas
+
+O HWiNFO guarda dois nomes para cada sensor e cada leitura: o nome original, em
+inglês, e o nome exibido, que segue o idioma do HWiNFO e qualquer renomeação
+que você tenha feito. Um HWiNFO em português mostra `GPU Temperature` como
+`Temperatura GPU`.
+
+- A saída usa o nome original em inglês como `label` (ou `sensor`) e acrescenta
+  `display` quando o nome exibido é diferente.
+- Os filtros `sensor` e `label` aceitam qualquer um dos dois nomes.
+- `thermal_overview` reconhece as leituras somente pelo nome original, então
+  funciona em qualquer idioma do HWiNFO.
+
+## Como ele lê os sensores
+
+A cada chamada, o servidor abre o mapeamento `Global\HWiNFO_SENS_SM2` somente
+para leitura, mapeia-o e copia a parte em uso. Durante a cópia ele segura o
+mutex do HWiNFO, `Global\HWiNFO_SM2_MUTEX` (esperando por ele no máximo 200 ms),
+para que a cópia não saia pela metade; se não conseguir o mutex, copia mesmo
+assim e confere se o bloco continua igual logo depois. Tudo é liberado antes de
+a chamada retornar. Deslocamentos e tamanhos vêm do cabeçalho do bloco e são
+conferidos contra o tamanho do mapeamento antes de qualquer leitura.
+
+## Solução de problemas
+
+Peça ao assistente para verificar o status do HWiNFO: `hwinfo_status` informa a
+causa. As mais comuns:
+
+| Problema | Causa |
+|---|---|
+| memória compartilhada não encontrada | O HWiNFO não está rodando, a janela de sensores está fechada, o Shared Memory Support está desligado ou foi ativado sem reiniciar o HWiNFO. |
+| `active: false`, valores desatualizados | A janela de sensores foi fechada ou o limite de 12 horas da edição gratuita foi atingido. |
+| acesso negado | O HWiNFO e o cliente MCP rodam em níveis de integridade diferentes. |
+| o assistente não tem as ferramentas do hwinfo | O cliente não foi reiniciado depois de o servidor ser adicionado, ou o caminho do executável está errado. No Claude Code, `claude mcp get hwinfo` mostra o caminho e se ele conecta. |
+
+## O que foi verificado
+
+O servidor foi validado com o HWiNFO64 8.60 em um Ryzen 9 9950X3D com uma
+GeForce RTX 5080, com o HWiNFO em português, e usado a partir do Claude Code.
+Os rótulos dessa máquina ficam guardados como fixture de teste
+(`internal/hwinfo/testdata`), e o primeiro padrão de cada campo de
+`thermal_overview` é coberto por um teste de regressão feito a partir dela.
+
+Os padrões para processadores Intel, modelos Ryzen mais antigos e placas de
+vídeo AMD ou Intel seguem a nomenclatura do HWiNFO, mas não foram conferidos
+nesse hardware. Se `thermal_overview` deixar passar uma leitura no seu sistema,
+`get_readings` ainda a devolve, e os padrões ficam em
+`internal/hwinfo/filter.go` (`cpuLabel`, `gpuLabel`).
+
+## Dúvidas e relatos de problemas
+
+Abra uma [issue](https://github.com/templarfelix/hwinfo-mcp/issues). Se
+`thermal_overview` escolher a leitura errada ou deixar uma de fora no seu
+hardware, a saída de `list_sensors` e a de `get_readings` para o sensor da CPU
+ou da GPU é o que basta para corrigir. Remova os números de série antes de
+enviar.
+
+## Desenvolvimento
+
+A versão do Go fica fixada em `.tool-versions`. Com o [asdf](https://asdf-vm.com)
+e o plugin `golang`, isto a instala:
+
+```
+asdf install
+```
+
+O `go.mod` pede a mesma versão, então uma versão diferente do Go baixa esse
+toolchain sozinha, e o CI lê do mesmo arquivo.
+
+```
+go vet ./...
+go test -race ./...
+go test -run '^$' -fuzz FuzzParse -fuzztime 30s ./internal/hwinfo
+go build -trimpath -ldflags "-s -w" -o hwinfo-mcp.exe .
+```
+
+O detector de corridas precisa de um compilador C; em uma máquina Windows sem
+um, rode `go test ./...` nela e deixe o `-race` para o CI ou para o Linux.
+
+| Caminho | Conteúdo |
+|---|---|
+| `main.go` | O servidor MCP e suas quatro ferramentas. |
+| `internal/hwinfo/layout.go` | O layout da memória compartilhada e sua decodificação. |
+| `internal/hwinfo/snapshot.go` | `Parse`, os tipos do snapshot e a parte portátil do leitor. |
+| `internal/hwinfo/read_windows.go` | Abertura, trava e cópia da memória compartilhada. |
+| `internal/hwinfo/filter.go` | Os filtros e as heurísticas do panorama térmico. |
+| `internal/hwinfo/hwinfotest` | Monta blocos sintéticos de memória compartilhada para os testes. |
+
+As dependências são a biblioteca padrão do Go, `golang.org/x/sys` e o SDK
+oficial de MCP para Go.
+
+## Licença
+
+MIT. Veja [LICENSE](LICENSE).

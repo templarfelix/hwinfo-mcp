@@ -1,5 +1,7 @@
 # hwinfo-mcp
 
+**English** · [Português (Brasil)](README.pt-BR.md) · [Español](README.es.md)
+
 Ask an AI assistant about your PC's hardware, and let it read the real sensors.
 
 hwinfo-mcp is a read-only [Model Context Protocol](https://modelcontextprotocol.io)
@@ -28,20 +30,54 @@ Windows side.
 
 ## Quick start
 
-### 1. Prepare HWiNFO
+### 1. Set up HWiNFO
 
-- Run HWiNFO64 with its **Sensors** window open (minimized to the tray is fine).
-- Enable **Shared Memory Support** in HWiNFO's settings (General / User
-  Interface).
+HWiNFO does the measuring; this server only reads what HWiNFO publishes.
+Publishing is off by default, so it has to be switched on once.
 
-Two things to know about that option:
+1. Install [HWiNFO64](https://www.hwinfo.com/download/) and start it. It asks
+   for administrator rights, which it needs to reach the hardware.
+2. On the welcome screen, tick **Sensors-only** and click **Settings**. Later,
+   the same settings are in the menu of HWiNFO's icon in the notification area.
+3. On the **General / User Interface** tab, enable these options:
 
-- If you switch it on while HWiNFO is already running, restart HWiNFO. The
-  shared memory only appeared after a restart on the machine this was
-  developed on.
-- The free edition of HWiNFO switches it off again after 12 hours. Re-enable
-  it or restart HWiNFO when that happens; the assistant can tell you, see
-  [Troubleshooting](#troubleshooting).
+   | Option | Why |
+   |---|---|
+   | **Shared Memory Support** | Required. It makes HWiNFO publish its readings to other programs. |
+   | **Show Sensors on Startup** | Readings are only published while the sensors are running. |
+   | **Minimize Sensors on Startup**, **Minimize Main Window on Startup** | HWiNFO starts straight into the notification area. |
+   | **Minimize Sensors instead of closing** | Closing the Sensors window by accident does not stop the readings. |
+   | **Auto Start** | HWiNFO starts with Windows, so the readings are always there. |
+
+4. Confirm with **OK**, then restart HWiNFO: close it from its notification
+   area icon and start it again. On the machine this was developed on, the
+   readings were only published after that restart.
+
+From then on HWiNFO only needs to be running, with its Sensors window open or
+minimized to the notification area.
+
+The option names are those of the English interface; HWiNFO translates them
+when it runs in another language. In any language you can check the result in
+`HWiNFO64.INI`, in HWiNFO's folder (normally `C:\Program Files\HWiNFO64`).
+With the options above it contains:
+
+```ini
+[Settings]
+SensorsOnly=1
+SensorsSM=1
+OpenSensors=1
+MinimalizeMainWnd=1
+MinimalizeSensors=1
+MinimalizeSensorsClose=1
+Autorun=1
+```
+
+`SensorsSM=1` is Shared Memory Support, the one that matters.
+
+**The 12-hour limit.** The free edition of HWiNFO switches Shared Memory
+Support off after 12 hours of run time, and it then has to be enabled again in
+the settings. HWiNFO Pro has no such limit. When the readings stop, the
+assistant can tell you why; see [Troubleshooting](#troubleshooting).
 
 ### 2. Get the server
 
