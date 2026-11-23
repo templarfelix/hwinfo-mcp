@@ -170,7 +170,8 @@ func TestReaderFallsBackWhenTheMutexIsBusy(t *testing.T) {
 	if !bytes.Equal(data, block) {
 		t.Error("the unlocked copy differs from the published block")
 	}
-	if waited < 25*time.Millisecond || waited > 5*time.Second {
+	// No lower bound: Windows waits are only as precise as the timer tick.
+	if waited > 5*time.Second {
 		t.Errorf("Read took %v; it should give up on the mutex after LockWait (30ms)", waited)
 	}
 	if !stillHeld {
