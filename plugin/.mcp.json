@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "hwinfo": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/server/hwinfo-mcp.exe"
+    }
+  }
+}

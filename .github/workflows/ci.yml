@@ -22,8 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The Go version is pinned in .tool-versions, the file asdf reads, so
-      # CI builds with exactly what `asdf install` gives a developer.
+      # The tool versions are pinned in .tool-versions, the file asdf reads,
+      # so CI builds with exactly what `asdf install` gives a developer.
       - uses: actions/setup-go@v7
         with:
           go-version-file: .tool-versions
@@ -34,17 +34,24 @@ jobs:
       - name: Test
         run: go test -race ./...
 
-      # The release is built for Windows on a Linux runner. Compiling both
-      # targets on every push keeps a tag from being the first to find out.
-      - name: Cross-compile for Windows
+      # The release is built for Windows on a Linux runner. Vetting that
+      # target and packaging everything on every push keeps a tag from being
+      # the first to find out that something no longer builds or packs.
+      - name: Vet for Windows
         if: runner.os == 'Linux'
         env:
           CGO_ENABLED: "0"
           GOOS: windows
-        run: |
-          GOARCH=amd64 go vet ./...
-          GOARCH=amd64 go build ./...
-          GOARCH=arm64 go build ./...
+        run: go vet ./...
+
+      - uses: actions/setup-node@v7
+        if: runner.os == 'Linux'
+        with:
+          node-version-file: .tool-versions
+
+      - name: Package a trial release
+        if: runner.os == 'Linux'
+        run: go run ./tools/release -version v0.0.0-ci -out dist
 
   release:
     name: Release
@@ -60,26 +67,26 @@ jobs:
         with:
           go-version-file: .tool-versions
 
-      - name: Build
-        env:
-          CGO_ENABLED: "0"
-          GOOS: windows
-        run: |
-          mkdir dist
-          for arch in amd64 arm64; do
-            GOARCH="$arch" go build -trimpath \
-              -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" \
-              -o "dist/hwinfo-mcp-windows-${arch}.exe" .
-          done
-          cd dist
-          sha256sum *.exe > SHA256SUMS
-          cat SHA256SUMS
+      # Packing the MCP bundle uses the mcpb tool, which runs on Node.js.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
 
+      - name: Package
+        run: go run ./tools/release -version "$GITHUB_REF_NAME" -out dist
+
+      # A tag such as v1.2.3-rc.1 becomes a pre-release, so it never turns
+      # into the "latest" release the README's download links point at.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          flags=()
+          case "$GITHUB_REF_NAME" in
+            *-*) flags+=(--prerelease) ;;
+          esac
           gh release create "$GITHUB_REF_NAME" dist/* \
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes
+            --generate-notes \
+            "${flags[@]}"

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.templarfelix/hwinfo-mcp",
+  "title": "HWiNFO sensors",
+  "description": "Read-only access to the hardware sensors HWiNFO monitors on a Windows PC.",
+  "version": "0.0.0-dev",
+  "repository": {
+    "url": "https://github.com/templarfelix/hwinfo-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.0.0-dev/hwinfo-mcp.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

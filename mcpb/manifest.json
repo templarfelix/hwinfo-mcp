@@ -1,0 +1,51 @@
+{
+  "manifest_version": "0.3",
+  "name": "hwinfo",
+  "display_name": "HWiNFO sensors",
+  "version": "0.0.0-dev",
+  "description": "Read-only access to the hardware sensors HWiNFO monitors on a Windows PC.",
+  "long_description": "Lets an assistant read what HWiNFO measures: temperatures, voltages, fan speeds, power draw, clocks, usage, drive health and hardware error counters.\n\nThe server reads the memory HWiNFO shares with other programs and never writes to it. It opens no network connection and changes nothing on the system.\n\nRequires Windows with HWiNFO64 running and its Shared Memory Support enabled. This project is not affiliated with HWiNFO or its authors.",
+  "author": {
+    "name": "Fernando Luís da Silva",
+    "url": "https://github.com/templarfelix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/templarfelix/hwinfo-mcp.git"
+  },
+  "homepage": "https://github.com/templarfelix/hwinfo-mcp",
+  "documentation": "https://github.com/templarfelix/hwinfo-mcp#readme",
+  "support": "https://github.com/templarfelix/hwinfo-mcp/issues",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/hwinfo-mcp.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/hwinfo-mcp.exe",
+      "args": [],
+      "env": {}
+    }
+  },
+  "tools": [
+    {
+      "name": "hwinfo_status",
+      "description": "Report whether HWiNFO is publishing sensor data and how fresh it is, or explain what is wrong and how to fix it."
+    },
+    {
+      "name": "list_sensors",
+      "description": "List the sensors HWiNFO monitors with the number of readings of each type."
+    },
+    {
+      "name": "get_readings",
+      "description": "Return current readings grouped by sensor, filtered by sensor, label and type, optionally with minimum, maximum and average."
+    },
+    {
+      "name": "thermal_overview",
+      "description": "Summarise CPU and GPU temperatures, power draw, throttling flags, fans and the remaining temperatures."
+    }
+  ],
+  "keywords": ["hwinfo", "hardware", "sensors", "temperature", "thermal", "windows"],
+  "license": "MIT",
+  "compatibility": {
+    "platforms": ["win32"]
+  }
+}

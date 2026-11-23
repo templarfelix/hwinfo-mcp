@@ -4,3 +4,6 @@
 /dist/
 *.test
 *.out
+
+# The release tool puts its own build of the server into the plugin
+/plugin/server/
