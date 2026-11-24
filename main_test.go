@@ -226,18 +226,23 @@ func TestStatus(t *testing.T) {
 	}
 }
 
+// leftToUser is what a hint says when its fix is a change in HWiNFO's own
+// settings: the assistant must not make that change for the user.
+const leftToUser = "Leave these steps to the user"
+
 // When there is no data, hwinfo_status still succeeds: explaining what is
 // wrong is its job.
 func TestStatusExplainsFailures(t *testing.T) {
 	tests := []struct {
-		err  error
-		hint string
+		err    error
+		hint   string
+		manual bool // the fix is a step in HWiNFO's settings
 	}{
-		{fmt.Errorf("%w (%s)", hwinfo.ErrNotFound, hwinfo.MappingName), "Shared Memory Support"},
-		{fmt.Errorf("%w (%s)", hwinfo.ErrAccessDenied, hwinfo.MappingName), "integrity level"},
-		{hwinfo.ErrUnsupported, "Windows"},
-		{fmt.Errorf("%w: signature %q", hwinfo.ErrSignature, "ABCD"), "Update HWiNFO"},
-		{errors.New("something unforeseen"), ""},
+		{fmt.Errorf("%w (%s)", hwinfo.ErrNotFound, hwinfo.MappingName), "Shared Memory Support", true},
+		{fmt.Errorf("%w (%s)", hwinfo.ErrAccessDenied, hwinfo.MappingName), "integrity level", false},
+		{hwinfo.ErrUnsupported, "Windows", false},
+		{fmt.Errorf("%w: signature %q", hwinfo.ErrSignature, "ABCD"), "Update HWiNFO", false},
+		{errors.New("something unforeseen"), "", false},
 	}
 	for _, tt := range tests {
 		cs := connect(t, failing(tt.err))
@@ -250,6 +255,9 @@ func TestStatusExplainsFailures(t *testing.T) {
 		}
 		if (tt.hint == "") != (got.Hint == "") || !strings.Contains(got.Hint, tt.hint) {
 			t.Errorf("%v: hint = %q, want it to mention %q", tt.err, got.Hint, tt.hint)
+		}
+		if strings.Contains(got.Hint, leftToUser) != tt.manual {
+			t.Errorf("%v: hint = %q; leaving the fix to the user: want %v", tt.err, got.Hint, tt.manual)
 		}
 	}
 }
@@ -268,6 +276,10 @@ func TestStatusInactive(t *testing.T) {
 	}
 	if got.Problem != hwinfo.ErrInactive.Error() || !strings.Contains(got.Hint, "12-hour") {
 		t.Errorf("problem = %q, hint = %q", got.Problem, got.Hint)
+	}
+	// Switching the sensors back on is the user's step, never the assistant's.
+	if !strings.Contains(got.Hint, leftToUser) {
+		t.Errorf("hint = %q, want it to leave the fix to the user", got.Hint)
 	}
 }
 
@@ -553,7 +565,7 @@ func TestDataToolsOnInactiveHWiNFO(t *testing.T) {
 		"list_sensors":     {sensors.Active, sensors.Warning},
 		"thermal_overview": {thermal.Active, thermal.Warning},
 	} {
-		if got.active || !strings.Contains(got.warning, "stale") {
+		if got.active || !strings.Contains(got.warning, "stale") || !strings.Contains(got.warning, leftToUser) {
 			t.Errorf("%s: active = %v, warning = %q", tool, got.active, got.warning)
 		}
 	}
@@ -572,8 +584,12 @@ func TestDataToolsFailWithAdvice(t *testing.T) {
 			t.Errorf("%s succeeded without data", tool)
 			continue
 		}
-		if msg := text(t, res); !strings.Contains(msg, "shared memory not found") || !strings.Contains(msg, "Shared Memory Support") {
+		msg := text(t, res)
+		if !strings.Contains(msg, "shared memory not found") || !strings.Contains(msg, "Shared Memory Support") {
 			t.Errorf("%s: error lacks the cause or the fix: %s", tool, msg)
+		}
+		if !strings.Contains(msg, leftToUser) {
+			t.Errorf("%s: error does not leave the fix to the user: %s", tool, msg)
 		}
 	}
 }

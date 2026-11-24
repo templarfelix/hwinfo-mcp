@@ -39,7 +39,9 @@ The labels can read a little differently between HWiNFO versions and are transla
 
 ## 3. The 12-hour limit
 
-The free edition of HWiNFO switches Shared Memory Support off after 12 hours of run time, and it then has to be enabled again in the settings. HWiNFO Pro has no such limit. Tell the user this is how HWiNFO is licensed, and do not suggest ways around it.
+The free edition of HWiNFO switches Shared Memory Support off after 12 hours of run time, and it then has to be enabled again in the settings. HWiNFO Pro has no such limit. Tell the user this is how HWiNFO is licensed.
+
+Switching the option back on is the user's step, in HWiNFO's own settings. Do not do it for them with any tool you have, do not restart HWiNFO for them, and do not suggest ways around the limit: HWiNFO's licence prohibits tampering with it and automating actions that get around it.
 
 ## 4. Confirm
 

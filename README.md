@@ -250,7 +250,8 @@ Autorun=1
 
 **The 12-hour limit.** The free edition of HWiNFO switches Shared Memory
 Support off after 12 hours of run time, and it then has to be enabled again in
-the settings. HWiNFO Pro has no such limit. When the readings stop, the
+the settings. HWiNFO Pro has no such limit. Enabling it again is a step for
+you to take: this project does not do it for you. When the readings stop, the
 assistant can tell you why; see [Troubleshooting](#troubleshooting).
 
 ## Installing the server by hand

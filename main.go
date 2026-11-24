@@ -254,14 +254,20 @@ type thermalOutput struct {
 	Fans       []sensorReadings `json:"fans" jsonschema:"fan speeds other than the graphics card's"`
 }
 
+// manualOnly ends the hints whose fix lies in HWiNFO's own settings. HWiNFO's
+// licence prohibits automating actions that get around the limits of its free
+// edition, and an assistant that can operate the desktop could otherwise take
+// "re-enable the option" as something to do itself.
+const manualOnly = ` Leave these steps to the user: HWiNFO's licence prohibits automating actions that get around its 12-hour limit.`
+
 // hint says how to fix the condition err describes, or "" if there is no
 // specific advice.
 func hint(err error) string {
 	switch {
 	case errors.Is(err, hwinfo.ErrNotFound):
-		return `HWiNFO is not publishing sensor data. Make sure HWiNFO is running with the Sensors window open and "Shared Memory Support" enabled in its settings. If the option was switched on while HWiNFO was already running, restart HWiNFO. The free edition switches it off again after 12 hours.`
+		return `HWiNFO is not publishing sensor data. The user has to make sure HWiNFO is running with the Sensors window open and "Shared Memory Support" enabled in its settings, and to restart HWiNFO if the option was switched on while it was already running. The free edition switches the option off again after 12 hours.` + manualOnly
 	case errors.Is(err, hwinfo.ErrInactive):
-		return `HWiNFO stopped updating its shared memory: the Sensors window was closed or the free edition's 12-hour limit was reached. Reopen the Sensors window, re-enable "Shared Memory Support", or restart HWiNFO.`
+		return `HWiNFO stopped updating its shared memory: the Sensors window was closed or the free edition's 12-hour limit was reached. The user has to reopen the Sensors window, re-enable "Shared Memory Support" or restart HWiNFO.` + manualOnly
 	case errors.Is(err, hwinfo.ErrAccessDenied):
 		return "HWiNFO and this server run at different integrity levels. Start the MCP client with the same privileges as HWiNFO."
 	case errors.Is(err, hwinfo.ErrUnsupported):
