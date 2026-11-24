@@ -16,6 +16,7 @@
   "homepage": "https://github.com/templarfelix/hwinfo-mcp",
   "documentation": "https://github.com/templarfelix/hwinfo-mcp#readme",
   "support": "https://github.com/templarfelix/hwinfo-mcp/issues",
+  "icon": "icon.png",
   "server": {
     "type": "binary",
     "entry_point": "server/hwinfo-mcp.exe",

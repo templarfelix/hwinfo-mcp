@@ -3,6 +3,8 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
+	"image/png"
 	"io"
 	"os"
 	"path/filepath"
@@ -166,5 +168,36 @@ func TestRepositoryManifestsCarryThePlaceholders(t *testing.T) {
 	}
 	if got := bytes.Count(entry, []byte(devSHA)); got != 1 {
 		t.Errorf("mcpb/server.json: the digest placeholder occurs %d times, want 1", got)
+	}
+}
+
+// The bundle's manifest must name the icon the release tool packs, and that
+// file must be a square PNG large enough for a client to scale down.
+func TestBundleIcon(t *testing.T) {
+	data, err := os.ReadFile(filepath.FromSlash("../../mcpb/manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Icon string `json:"icon"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Icon != bundleIcon {
+		t.Fatalf("mcpb/manifest.json names the icon %q, but the release packs %q", manifest.Icon, bundleIcon)
+	}
+
+	f, err := os.Open(filepath.FromSlash("../../mcpb/" + bundleIcon))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	cfg, err := png.DecodeConfig(f)
+	if err != nil {
+		t.Fatalf("mcpb/%s is not a PNG: %v", bundleIcon, err)
+	}
+	if cfg.Width != cfg.Height || cfg.Width < 512 {
+		t.Errorf("mcpb/%s is %dx%d, want a square of at least 512 pixels", bundleIcon, cfg.Width, cfg.Height)
 	}
 }

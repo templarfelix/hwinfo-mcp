@@ -75,10 +75,9 @@ involved:
 
 **Claude Desktop: the bundle.** Download
 [`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-and open it, or drag it into Claude Desktop. The bundle is new in v0.2.0 and
-has so far only been checked with the bundle tool itself. If it does not
-install, [install the server by hand](#installing-the-server-by-hand), and
-please open an issue.
+and open it, or drag it into Claude Desktop. The bundle is not signed. If it
+does not install, [install the server by hand](#installing-the-server-by-hand),
+and please open an issue.
 
 **Claude Code: the plugin.** One command installs it:
 
@@ -396,9 +395,9 @@ field is covered by a regression test built from it.
 
 The plugin was installed in Claude Code 2.1.319 through the marketplace, from
 the published release: the download matches its checksum, its server connects,
-and its tools and skills register. The MCP bundle was validated and packed with
-the official `mcpb` tool, but had not been installed in Claude Desktop when
-v0.2.0 was released.
+and its tools and skills register. The MCP bundle of v0.2.0 was installed in
+Claude Desktop 6.6395.1 for Windows: its server connects and its four tools
+register.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If
@@ -445,7 +444,7 @@ The race detector needs a C compiler; on a Windows machine without one, run
 | `internal/hwinfo/filter.go` | Filtering and the thermal overview heuristics. |
 | `internal/hwinfo/hwinfotest` | Builds synthetic shared memory blocks for tests. |
 | `plugin/` | The Claude Code plugin: manifest, MCP configuration and skills. |
-| `mcpb/` | The MCP bundle's manifest and the MCP Registry entry. |
+| `mcpb/` | The MCP bundle's manifest and icon, and the MCP Registry entry. |
 | `tools/release` | Builds and packs every file of a release. |
 | `.claude-plugin/marketplace.json` | The marketplace entry, which points at the plugin of the latest release. |
 

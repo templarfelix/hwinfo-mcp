@@ -78,10 +78,9 @@ Hay cuatro formas de instalar el servidor. De la más fácil a la más laboriosa
 
 **Claude Desktop: el paquete.** Descarga
 [`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-y ábrelo, o arrástralo a Claude Desktop. El paquete es nuevo en la v0.2.0 y
-hasta ahora solo se ha comprobado con la propia herramienta de empaquetado. Si
-no se instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y,
-por favor, abre una issue.
+y ábrelo, o arrástralo a Claude Desktop. El paquete no está firmado. Si no se
+instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y, por
+favor, abre una issue.
 
 **Claude Code: el plugin.** Un comando lo instala:
 
@@ -409,9 +408,9 @@ prueba de regresión construida a partir de ella.
 
 El plugin se instaló en Claude Code 2.1.319 a través del marketplace, desde la
 versión publicada: la descarga coincide con su checksum, el servidor conecta, y
-las herramientas y las skills se registran. El paquete MCP se validó y
-empaquetó con la herramienta oficial `mcpb`, pero aún no se había instalado en
-Claude Desktop cuando se publicó la v0.2.0.
+las herramientas y las skills se registran. El paquete MCP de la v0.2.0 se
+instaló en Claude Desktop 6.6395.1 para Windows: el servidor conecta y las
+cuatro herramientas se registran.
 
 Los patrones para procesadores Intel, modelos Ryzen más antiguos y tarjetas
 gráficas AMD o Intel siguen la nomenclatura de HWiNFO, pero no se han
@@ -460,7 +459,7 @@ uno, ejecuta `go test ./...` allí y deja `-race` para el CI o para Linux.
 | `internal/hwinfo/filter.go` | Los filtros y las heurísticas del resumen térmico. |
 | `internal/hwinfo/hwinfotest` | Construye bloques sintéticos de memoria compartida para las pruebas. |
 | `plugin/` | El plugin de Claude Code: manifiesto, configuración de MCP y skills. |
-| `mcpb/` | El manifiesto del paquete MCP y la entrada del MCP Registry. |
+| `mcpb/` | El manifiesto y el icono del paquete MCP, y la entrada del MCP Registry. |
 | `tools/release` | Compila y empaqueta todos los archivos de una versión. |
 | `.claude-plugin/marketplace.json` | La entrada del marketplace, que apunta al plugin de la última versión. |
 

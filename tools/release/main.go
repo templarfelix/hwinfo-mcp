@@ -47,6 +47,9 @@ const (
 	devSHA = "0000000000000000000000000000000000000000000000000000000000000000"
 
 	serverInArchive = "server/hwinfo-mcp.exe"
+	// bundleIcon is the icon mcpb/manifest.json names. It travels inside the
+	// bundle, next to the manifest.
+	bundleIcon = "icon.png"
 )
 
 var versionRE = regexp.MustCompile(`^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
@@ -122,8 +125,10 @@ func run(version, out string, mcpb []string) error {
 	// The MCP bundle and its registry entry.
 	if len(mcpb) > 0 {
 		bundleDir := filepath.Join(stage, "bundle")
-		if err := copyFile(filepath.Join("mcpb", "manifest.json"), filepath.Join(bundleDir, "manifest.json")); err != nil {
-			return err
+		for _, name := range []string{"manifest.json", bundleIcon} {
+			if err := copyFile(filepath.Join("mcpb", name), filepath.Join(bundleDir, name)); err != nil {
+				return err
+			}
 		}
 		if err := stamp(filepath.Join(bundleDir, "manifest.json"), devVersion, plain, 1); err != nil {
 			return err
