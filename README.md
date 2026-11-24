@@ -427,11 +427,10 @@ field is covered by a regression test built from it.
 
 The plugin was installed in Claude Code 2.1.319 through the marketplace, from
 a published release: the download matches its checksum, its server connects,
-and its tools and skills register. A bundle packed with the official `mcpb`
-tool was installed in Claude Desktop 6.6395.1 for Windows: its server connected
-and its four tools registered. The release tool now writes the bundle itself;
-the official tool reads that file, but no Claude Desktop had opened one when
-this was written.
+and its tools and skills register. The bundle was installed in Claude Desktop
+6.6395.1 for Windows: its server connects and its five tools register. A
+question answered from a Claude Desktop chat, and the skills run by a model,
+have not been observed yet.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If

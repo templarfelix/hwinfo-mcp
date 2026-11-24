@@ -438,11 +438,10 @@ Os rótulos dessa máquina ficam guardados como fixture de teste
 
 O plugin foi instalado no Claude Code 2.1.319 pelo marketplace, a partir de uma
 release publicada: o download confere com o checksum, o servidor conecta, e as
-ferramentas e as skills são registradas. Um pacote montado com a ferramenta
-oficial `mcpb` foi instalado no Claude Desktop 6.6395.1 para Windows: o
-servidor conectou e as quatro ferramentas foram registradas. Hoje a própria
-ferramenta de release monta o pacote; a ferramenta oficial lê esse arquivo, mas
-nenhum Claude Desktop tinha aberto um quando este texto foi escrito.
+ferramentas e as skills são registradas. O pacote foi instalado no Claude
+Desktop 6.6395.1 para Windows: o servidor conecta e as cinco ferramentas são
+registradas. Ainda não foram observadas uma pergunta respondida a partir de um
+chat do Claude Desktop nem as skills executadas por um modelo.
 
 Os padrões para processadores Intel, modelos Ryzen mais antigos e placas de
 vídeo AMD ou Intel seguem a nomenclatura do HWiNFO, mas não foram conferidos

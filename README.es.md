@@ -441,11 +441,10 @@ prueba de regresión construida a partir de ella.
 
 El plugin se instaló en Claude Code 2.1.319 a través del marketplace, desde una
 versión publicada: la descarga coincide con su checksum, el servidor conecta, y
-las herramientas y las skills se registran. Un paquete empaquetado con la
-herramienta oficial `mcpb` se instaló en Claude Desktop 6.6395.1 para Windows:
-el servidor conectó y las cuatro herramientas se registraron. Ahora la propia
-herramienta de publicación crea el paquete; la herramienta oficial lee ese
-archivo, pero ningún Claude Desktop había abierto uno cuando se escribió esto.
+las herramientas y las skills se registran. El paquete se instaló en Claude
+Desktop 6.6395.1 para Windows: el servidor conecta y las cinco herramientas se
+registran. Aún no se ha observado una pregunta respondida desde un chat de
+Claude Desktop ni las skills ejecutadas por un modelo.
 
 Los patrones para procesadores Intel, modelos Ryzen más antiguos y tarjetas
 gráficas AMD o Intel siguen la nomenclatura de HWiNFO, pero no se han
