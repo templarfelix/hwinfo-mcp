@@ -24,9 +24,10 @@ of memory HWiNFO shares with other programs and never writes to it, opens no
 network connection and changes nothing on the system.
 
 **Windows only.** HWiNFO exists only for Windows, and so does the shared memory
-this server reads, so the releases are for Windows on x64 and on Arm. Linux
-inside WSL 2 does not see the PC's sensor chips either: run the server on the
-Windows side.
+this server reads, so the executable is released for Windows on x64 and on Arm.
+The plugin and the bundle carry the x64 build, and nothing has been tested on
+Windows on Arm. Linux inside WSL 2 does not see the PC's sensor chips either:
+run the server on the Windows side.
 
 ## Quick start
 
@@ -416,9 +417,10 @@ it takes to fix it. Remove serial numbers from it first.
 
 ## Development
 
-The tool versions are pinned in `.tool-versions`: Go, and Node.js for packing
-the MCP bundle. With [asdf](https://asdf-vm.com) and its `golang` and `nodejs`
-plugins, this installs them:
+The tool versions are pinned in `.tool-versions`: Go, and Node.js, which is
+only needed to check the MCP bundle with the official `mcpb` tool. With
+[asdf](https://asdf-vm.com) and its `golang` and `nodejs` plugins, this
+installs them:
 
 ```
 asdf install
@@ -448,6 +450,7 @@ The race detector needs a C compiler; on a Windows machine without one, run
 | `plugin/` | The Claude Code plugin: manifest, MCP configuration and skills. |
 | `mcpb/` | The MCP bundle's manifest and icon, and the MCP Registry entry. |
 | `tools/release` | Builds and packs every file of a release. |
+| `tools/marketplace` | Points the marketplace entry at a published release. |
 | `.claude-plugin/marketplace.json` | The marketplace entry, which points at the plugin of the latest release. |
 
 Dependencies are the Go standard library, `golang.org/x/sys` and the official
@@ -461,9 +464,11 @@ MCP Go SDK.
    `dist/`, which is how to try them before tagging:
    `claude --plugin-dir dist/hwinfo-plugin.zip` loads the plugin for one
    session.
-2. Once the release is published, point `.claude-plugin/marketplace.json` at
-   the new `hwinfo-plugin.zip`: its URL, and its SHA-256 from the release's
-   `SHA256SUMS`. Plugin users get the update from that commit.
+2. Once the release is published, run
+   `go run ./tools/marketplace -version v1.2.3` and commit the change. It
+   points `.claude-plugin/marketplace.json` at the new `hwinfo-plugin.zip`,
+   after checking the download against the release's `SHA256SUMS`. Plugin
+   users get the update from that commit.
 
 ## License
 

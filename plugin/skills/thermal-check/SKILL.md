@@ -40,7 +40,7 @@ A verdict needs the hardware working hard. Idle readings only show that nothing 
 
 ### CPU
 
-- **Find the limit that stops it.** `Thermal Limit` is how close the CPU is to its temperature limit, in percent. At 100 % the CPU is being capped by temperature, even while the `Thermal Throttling` flags stay at 0. `thermal_overview` reports only those flags under `thermal_throttling`, so read `Thermal Limit` yourself and report both.
+- **Find the limit that stops it.** `Thermal Limit` is how close the CPU is to its temperature limit, in percent. At 100 % the CPU is being capped by temperature, even while the `Thermal Throttling` flags stay at 0. `thermal_overview` gives the reading as `thermal_limit` and the flags as `thermal_throttling`. Report both, and never take clear flags to mean that temperature did not limit the CPU. If `thermal_limit` is missing, the server is an older one or the CPU does not report it: look for `Thermal Limit` with `get_readings`.
 - **Open power limits end at the temperature limit by design.** If the power and current limit readings peak far below 100 % while `Thermal Limit` reaches 100 %, the board lets the CPU draw far more than it does, and any all-core load will climb to the temperature limit whatever the cooler. That alone says nothing about paste. What matters then is how much power the CPU sustains at that temperature, and the fix, if one is wanted, is a power or temperature limit in the BIOS.
 - **Compare the dies.** On AMD CPUs with two CCDs, both should read close to each other under an all-core load. One staying well above the other under the same load can point to uneven contact.
 - **Watch for creep.** At a constant load, a temperature that settles within a minute means the heat is being carried away. One that keeps climbing for minutes points at the cooler filling up: airflow, dust, radiator or pump, rather than paste.
@@ -49,7 +49,7 @@ A verdict needs the hardware working hard. Idle readings only show that nothing 
 ### Graphics card
 
 - **The hot spot is always above the GPU temperature.** It is the hottest sensor on the die, while the GPU temperature is a representative value. Work out the gap between the two from the same call.
-- **The gap grows with power.** Always quote it with the board power, and compare gaps only at similar power.
+- **The gap grows with power.** Always quote it with the card's power, and compare gaps only at similar power. `thermal_overview` gives that power as `power`; its label says what was measured. `GPU Power` on an NVIDIA card and `Total Board Power (TBP)` are the whole board. `GPU PPT` and `GPU ASIC Power` are, going by HWiNFO's names for them, the chip alone, which reads lower. Do not compare one kind with the other, and say which one you are quoting.
 - **Flags and headroom.** `Performance Limit - Thermal` shows whether the card ever limited itself (`max` of 1) or is doing so now (`value` of 1). A fan duty well below 100 % at the hottest moment means the card still has cooling in reserve.
 - **Memory.** The memory chips should read close to each other. One chip well above the rest can point to a thermal pad that is not making contact.
 

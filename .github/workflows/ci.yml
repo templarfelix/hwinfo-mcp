@@ -20,7 +20,11 @@ jobs:
         # windows adds the shared-memory reader, which only compiles there.
         os: [ubuntu-latest, windows-latest]
     steps:
+      # No step needs to talk to the repository again, so the token is not
+      # left behind in the git configuration for later steps to find.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       # The tool versions are pinned in .tool-versions, the file asdf reads,
       # so CI builds with exactly what `asdf install` gives a developer.
@@ -36,7 +40,10 @@ jobs:
 
       # The release is built for Windows on a Linux runner. Vetting that
       # target and packaging everything on every push keeps a tag from being
-      # the first to find out that something no longer builds or packs.
+      # the first to find out that something no longer builds or packs. The
+      # trial package is also where the official mcpb tool checks the bundle:
+      # it comes from npm, so it runs here, where there is nothing to publish
+      # and the token can only read.
       - name: Vet for Windows
         if: runner.os == 'Linux'
         env:
@@ -62,25 +69,42 @@ jobs:
       contents: write # to create the release and upload its files
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-go@v7
         with:
           go-version-file: .tool-versions
 
-      # Packing the MCP bundle uses the mcpb tool, which runs on Node.js.
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .tool-versions
-
+      # Only this repository's own Go code runs between here and the upload:
+      # no Node.js, and -mcpb "" leaves out the check that would fetch the
+      # mcpb tool from npm. The test job has already run that check on the
+      # same commit.
       - name: Package
-        run: go run ./tools/release -version "$GITHUB_REF_NAME" -out dist
+        run: go run ./tools/release -version "$GITHUB_REF_NAME" -out dist -mcpb ""
 
       # A tag such as v1.2.3-rc.1 becomes a pre-release, so it never turns
       # into the "latest" release the README's download links point at.
+      #
+      # The step can be run again. A release that is already public is left
+      # exactly as it is; a draft, which is what an upload that failed halfway
+      # leaves behind, is removed and made again. The tag is never touched.
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          state=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' 2>/dev/null || echo absent)
+          case "$state" in
+            false)
+              echo "::notice::$GITHUB_REF_NAME is already published; nothing was changed."
+              exit 0
+              ;;
+            true)
+              gh release delete "$GITHUB_REF_NAME" --yes
+              ;;
+          esac
+
           flags=()
           case "$GITHUB_REF_NAME" in
             *-*) flags+=(--prerelease) ;;

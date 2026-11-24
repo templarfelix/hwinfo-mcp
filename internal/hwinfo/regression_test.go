@@ -197,10 +197,11 @@ func TestThermalsOnRealSystem(t *testing.T) {
 			{"CPU temperature", cpu.Temperature, "CPU (Tctl/Tdie)", "CPU (Tctl/Tdie)", TypeTemperature, degC, 77.25},
 			{"CPU die average", cpu.DieAverage, "CPU Die (average)", "Caso CPU (média)", TypeTemperature, degC, 74.469},
 			{"CPU package power", cpu.PackagePower, "CPU Package Power", "Potência total da CPU", TypePower, "W", 155.223},
+			{"CPU thermal limit", cpu.ThermalLimit, "Thermal Limit", "Thermal Limit", TypeUsage, "%", 78.389},
 			{"GPU temperature", gpu.Temperature, "GPU Temperature", "Temperatura GPU", TypeTemperature, degC, 64.773},
 			{"GPU hot spot", gpu.HotSpot, "GPU Hot Spot Temperature", "Temperatura de ponto quente da GPU", TypeTemperature, degC, 80.313},
 			{"GPU memory junction", gpu.MemoryJunction, "GPU Memory Junction Temperature", "Temperatura de junção da memória GPU", TypeTemperature, degC, 68},
-			{"GPU board power", gpu.Power, "GPU Power", "GPU Potência", TypePower, "W", 261.324},
+			{"GPU power", gpu.Power, "GPU Power", "GPU Potência", TypePower, "W", 261.324},
 		}
 		for _, p := range picks {
 			if p.got == nil {
@@ -258,6 +259,11 @@ func TestThermalsOnRealSystem(t *testing.T) {
 			if got == nil || got.Active || got.Occurred {
 				t.Errorf("layout %d: %s throttling = %+v, want flags found and clear", layout, device, got)
 			}
+		}
+		// Clear flags are not the whole story on this machine: the CPU had
+		// been held at its temperature limit, and only this reading says so.
+		if cpu.ThermalLimit != nil && cpu.ThermalLimit.Max != 100.016 {
+			t.Errorf("layout %d: thermal limit peaked at %v, want the fixture's 100.016", layout, cpu.ThermalLimit.Max)
 		}
 
 		// Everything else that measures a temperature, including the

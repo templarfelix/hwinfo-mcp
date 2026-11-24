@@ -143,6 +143,11 @@ func TestThermalsFallbacks(t *testing.T) {
 	if cpu.Throttling == nil || cpu.Throttling.Active || !cpu.Throttling.Occurred {
 		t.Errorf("throttling = %+v, want not active but occurred", cpu.Throttling)
 	}
+	// "Core 0 Distance to TjMAX" is a temperature, not the percentage AMD
+	// processors report, so this CPU has no thermal limit reading.
+	if cpu.ThermalLimit != nil {
+		t.Errorf("thermal limit = %q on a CPU that reports none", label(cpu.ThermalLimit))
+	}
 
 	if len(th.GPUs) != 2 {
 		t.Fatalf("%d GPUs, want 2", len(th.GPUs))
@@ -165,7 +170,11 @@ func TestThermalsFallbacks(t *testing.T) {
 	}
 	// Board power is preferred over PPT even though PPT comes first.
 	if got := label(dgpu.Power); got != "Total Board Power (TBP)" {
-		t.Errorf("board power = %q, want Total Board Power (TBP)", got)
+		t.Errorf("power = %q, want Total Board Power (TBP)", got)
+	}
+	// The integrated adapter has no board; its only power reading is used.
+	if igpu.Power == nil || igpu.Power.Value != 3 {
+		t.Errorf("integrated GPU power = %q, want its GPU Power of 3 W", label(igpu.Power))
 	}
 	if got := originals(dgpu.Fans); !reflect.DeepEqual(got, []string{"GPU Fan"}) {
 		t.Errorf("GPU fans = %q", got)
@@ -176,6 +185,27 @@ func TestThermalsFallbacks(t *testing.T) {
 	}
 	if got := originals(th.Fans); !reflect.DeepEqual(got, []string{"CPU"}) {
 		t.Errorf("fans = %q, want only the mainboard's", got)
+	}
+}
+
+// A card that reports no board power still gets a power reading: the chip's.
+// The label, not the field, tells the two apart, and the preferred chip
+// reading wins whatever order HWiNFO lists them in.
+func TestThermalsGPUPowerFallsBackToTheChip(t *testing.T) {
+	snap := parse(t, hwinfotest.Image{
+		Sensors: []hwinfotest.Sensor{{Name: "GPU [#0]: AMD Radeon RX 6800 XT"}},
+		Readings: []hwinfotest.Reading{
+			{Type: hwinfotest.Power, Sensor: 0, Label: "GPU Core Power (VDDCR_GFX)", Unit: "W", Value: 170},
+			{Type: hwinfotest.Power, Sensor: 0, Label: "GPU ASIC Power", Unit: "W", Value: 228},
+			{Type: hwinfotest.Power, Sensor: 0, Label: "GPU PPT", Unit: "W", Value: 231},
+		},
+	})
+	th := snap.Thermals()
+	if len(th.GPUs) != 1 {
+		t.Fatalf("%d GPUs, want 1", len(th.GPUs))
+	}
+	if got := label(th.GPUs[0].Power); got != "GPU PPT" {
+		t.Errorf("power = %q, want the chip's GPU PPT", got)
 	}
 }
 

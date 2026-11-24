@@ -117,6 +117,7 @@ var cpuLabel = struct {
 	ccd          labelSet // one per core complex die
 	core         labelSet // one per core
 	packagePower labelSet
+	thermalLimit labelSet // percentage of the temperature limit in use
 	throttling   labelSet // Yes/No flags
 }{
 	temperature:  labels(`CPU \(Tctl/Tdie\)`, `CPU \(Tdie\)`, `CPU \(Tctl\)`, `CPU Package`, `Core Max`),
@@ -124,15 +125,20 @@ var cpuLabel = struct {
 	ccd:          labels(`CPU CCD\d+ \(Tdie\)`),
 	core:         labels(`Core ?\d+ \(CCD\d+\)`, `(?:P-core|E-core|Core) ?\d+`),
 	packagePower: labels(`CPU Package Power`, `CPU PPT`),
+	thermalLimit: labels(`Thermal Limit`),
 	throttling:   labels(`.*Thermal Throttling.*`),
 }
 
 // gpuLabel holds the original labels behind each GPU field. As with cpuLabel,
 // the first pattern of every set is verified against an RTX 5080.
 //
-// "GPU Power" is the draw of the whole board. It must match exactly: the same
-// sensor also has "GPU Power Limit (rated)" and a dozen per-rail readings
-// such as "GPU 12VHPWR Power", all of them of type power.
+// "GPU Power" is the draw of the whole board on that card. It must match
+// exactly: the same sensor also has "GPU Power Limit (rated)" and a dozen
+// per-rail readings such as "GPU 12VHPWR Power", all of them of type power.
+// The later power patterns are a mix: "Total Board Power (TBP)" is the board
+// again, while "GPU PPT" and "GPU ASIC Power" are the chip alone, and an
+// integrated adapter has no board at all. That is why the field is called
+// Power and not BoardPower: the label it carries says what was measured.
 var gpuLabel = struct {
 	temperature    labelSet
 	hotSpot        labelSet
@@ -171,6 +177,13 @@ type CPUThermals struct {
 	HottestCore  *Reading  // the per-core temperature that is highest right now
 	PackagePower *Reading
 
+	// ThermalLimit is how much of its temperature limit the processor uses,
+	// in percent (AMD). At 100 the processor holds itself at the limit, and
+	// it does so without setting any of the flags behind Throttling: on the
+	// machine the test fixture comes from, this reading peaked at 100 while
+	// every flag stayed clear.
+	ThermalLimit *Reading
+
 	Throttling *Throttling
 }
 
@@ -181,13 +194,15 @@ type GPUThermals struct {
 	Temperature    *Reading
 	HotSpot        *Reading
 	MemoryJunction *Reading
-	Power          *Reading // draw of the whole board
+	Power          *Reading // the whole board where HWiNFO reports it, else the chip
 	Fans           []Reading
 
 	Throttling *Throttling
 }
 
-// Throttling summarises HWiNFO's thermal-limit flags for a device.
+// Throttling summarises HWiNFO's Yes/No thermal flags for a device. Clear
+// flags do not mean the device was never limited by temperature: see
+// CPUThermals.ThermalLimit.
 type Throttling struct {
 	Active   bool // a flag is set right now
 	Occurred bool // a flag has been set at some point since HWiNFO started
@@ -299,6 +314,7 @@ func (s *Snapshot) Thermals() Thermals {
 			CCDs:         d.all(s, TypeTemperature, cpuLabel.ccd),
 			HottestCore:  hottest(d.all(s, TypeTemperature, cpuLabel.core)),
 			PackagePower: d.first(s, TypePower, cpuLabel.packagePower),
+			ThermalLimit: d.first(s, TypeUsage, cpuLabel.thermalLimit),
 			Throttling:   d.throttling(s, cpuLabel.throttling),
 		})
 	}

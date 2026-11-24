@@ -25,9 +25,10 @@ que o HWiNFO compartilha com outros programas e nunca escreve nele, não abre
 conexão de rede e não altera nada no sistema.
 
 **Somente Windows.** O HWiNFO só existe para Windows, e a memória compartilhada
-que este servidor lê também, por isso as releases são para Windows em x64 e em
-Arm. O Linux dentro do WSL 2 tampouco enxerga os chips de sensores do PC:
-execute o servidor do lado do Windows.
+que este servidor lê também, por isso o executável é publicado para Windows em
+x64 e em Arm. O plugin e o pacote trazem a versão x64, e nada foi testado no
+Windows em Arm. O Linux dentro do WSL 2 tampouco enxerga os chips de sensores do
+PC: execute o servidor do lado do Windows.
 
 ## Início rápido
 
@@ -426,9 +427,10 @@ enviar.
 
 ## Desenvolvimento
 
-As versões das ferramentas ficam fixadas em `.tool-versions`: o Go, e o Node.js
-para montar o pacote MCP. Com o [asdf](https://asdf-vm.com) e os plugins
-`golang` e `nodejs`, isto as instala:
+As versões das ferramentas ficam fixadas em `.tool-versions`: o Go, e o Node.js,
+que só é necessário para conferir o pacote MCP com a ferramenta oficial `mcpb`.
+Com o [asdf](https://asdf-vm.com) e os plugins `golang` e `nodejs`, isto as
+instala:
 
 ```
 asdf install
@@ -458,6 +460,7 @@ um, rode `go test ./...` nela e deixe o `-race` para o CI ou para o Linux.
 | `plugin/` | O plugin do Claude Code: manifesto, configuração do MCP e skills. |
 | `mcpb/` | O manifesto e o ícone do pacote MCP, e a entrada do MCP Registry. |
 | `tools/release` | Compila e empacota todos os arquivos de uma release. |
+| `tools/marketplace` | Aponta a entrada do marketplace para uma release publicada. |
 | `.claude-plugin/marketplace.json` | A entrada do marketplace, que aponta para o plugin da release mais recente. |
 
 As dependências são a biblioteca padrão do Go, `golang.org/x/sys` e o SDK
@@ -470,8 +473,10 @@ oficial de MCP para Go.
    `SHA256SUMS`. O mesmo comando, rodado à mão, gera os mesmos arquivos em
    `dist/`, e é assim que se testa antes da tag:
    `claude --plugin-dir dist/hwinfo-plugin.zip` carrega o plugin por uma sessão.
-2. Com a release publicada, aponte o `.claude-plugin/marketplace.json` para o
-   novo `hwinfo-plugin.zip`: a URL dele e o SHA-256 que está no `SHA256SUMS` da
+2. Com a release publicada, rode
+   `go run ./tools/marketplace -version v1.2.3` e faça o commit da mudança. O
+   comando aponta o `.claude-plugin/marketplace.json` para o novo
+   `hwinfo-plugin.zip`, depois de conferir o download com o `SHA256SUMS` da
    release. É desse commit que os usuários do plugin recebem a atualização.
 
 ## Licença

@@ -131,7 +131,7 @@ func newServerAt(src source, now func() time.Time) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "thermal_overview",
-		Description: "Summarise how hot the PC runs: for each CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core and package power; for each GPU the core, hot spot and memory junction temperatures, board power and fans; plus the remaining temperatures (mainboard, memory, drives) and fan speeds. Every reading includes its minimum, maximum and average since HWiNFO started.",
+		Description: "Summarise how hot the PC runs: for each CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power and how close it runs to its temperature limit; for each GPU the core, hot spot and memory junction temperatures, power draw and fans; plus the remaining temperatures (mainboard, memory, drives) and fan speeds. Every reading includes its minimum, maximum and average since HWiNFO started.",
 		Annotations: readOnly("Thermal overview"),
 	}, h.thermalOverview)
 
@@ -219,9 +219,12 @@ type readingsOutput struct {
 // a single tool result; the cap keeps the largest answer around 40 KB.
 const maxReadings = 300
 
+// throttling carries HWiNFO's Yes/No thermal flags and nothing more. A CPU
+// can be held at its temperature limit with every flag clear, which is what
+// cpuThermals.ThermalLimit is there to show.
 type throttling struct {
-	Active   bool `json:"active" jsonschema:"a thermal limit is in effect right now"`
-	Occurred bool `json:"occurred" jsonschema:"a thermal limit was hit at some point since HWiNFO started"`
+	Active   bool `json:"active" jsonschema:"one of HWiNFO's thermal throttling flags is set right now"`
+	Occurred bool `json:"occurred" jsonschema:"one of those flags was set at some point since HWiNFO started"`
 }
 
 type cpuThermals struct {
@@ -231,7 +234,8 @@ type cpuThermals struct {
 	CCDs         []reading   `json:"ccds,omitempty" jsonschema:"temperature of each core complex die (AMD)"`
 	HottestCore  *reading    `json:"hottest_core,omitempty" jsonschema:"the core that is hottest right now"`
 	PackagePower *reading    `json:"package_power,omitempty"`
-	Throttling   *throttling `json:"thermal_throttling,omitempty"`
+	ThermalLimit *reading    `json:"thermal_limit,omitempty" jsonschema:"how much of its temperature limit the CPU uses, in percent (AMD); at 100 it is being held at the limit, which the throttling flags do not show"`
+	Throttling   *throttling `json:"thermal_throttling,omitempty" jsonschema:"HWiNFO's thermal throttling flags; clear flags do not rule out a CPU held at its temperature limit, see thermal_limit"`
 }
 
 type gpuThermals struct {
@@ -239,9 +243,9 @@ type gpuThermals struct {
 	Temperature    *reading    `json:"temperature,omitempty" jsonschema:"GPU core temperature"`
 	HotSpot        *reading    `json:"hot_spot,omitempty" jsonschema:"hottest point of the GPU die"`
 	MemoryJunction *reading    `json:"memory_junction,omitempty" jsonschema:"hottest video memory chip"`
-	BoardPower     *reading    `json:"board_power,omitempty" jsonschema:"power drawn by the whole graphics card"`
+	Power          *reading    `json:"power,omitempty" jsonschema:"power the graphics card draws: the whole board where HWiNFO reports it, otherwise the GPU chip alone; the label says which"`
 	Fans           []reading   `json:"fans,omitempty"`
-	Throttling     *throttling `json:"thermal_throttling,omitempty"`
+	Throttling     *throttling `json:"thermal_throttling,omitempty" jsonschema:"HWiNFO's flag for a thermal performance limit on the card"`
 }
 
 type thermalOutput struct {
@@ -269,7 +273,7 @@ func hint(err error) string {
 	case errors.Is(err, hwinfo.ErrInactive):
 		return `HWiNFO stopped updating its shared memory: the Sensors window was closed or the free edition's 12-hour limit was reached. The user has to reopen the Sensors window, re-enable "Shared Memory Support" or restart HWiNFO.` + manualOnly
 	case errors.Is(err, hwinfo.ErrAccessDenied):
-		return "HWiNFO and this server run at different integrity levels. Start the MCP client with the same privileges as HWiNFO."
+		return "Windows refused this server access to HWiNFO's shared memory, which points to HWiNFO and the MCP client running at different integrity levels. Leave this to the user: do not start the client or HWiNFO with other privileges yourself."
 	case errors.Is(err, hwinfo.ErrUnsupported):
 		return "HWiNFO only exists for Windows; run this server on the Windows PC that HWiNFO monitors."
 	case errors.Is(err, hwinfo.ErrSignature), errors.Is(err, hwinfo.ErrLayout):
@@ -423,6 +427,7 @@ func (h *handlers) thermalOverview(_ context.Context, _ *mcp.CallToolRequest, _ 
 			CCDs:         picks(c.CCDs),
 			HottestCore:  pick(c.HottestCore),
 			PackagePower: pick(c.PackagePower),
+			ThermalLimit: pick(c.ThermalLimit),
 			Throttling:   throttled(c.Throttling),
 		}
 	}
@@ -432,7 +437,7 @@ func (h *handlers) thermalOverview(_ context.Context, _ *mcp.CallToolRequest, _ 
 			Temperature:    pick(g.Temperature),
 			HotSpot:        pick(g.HotSpot),
 			MemoryJunction: pick(g.MemoryJunction),
-			BoardPower:     pick(g.Power),
+			Power:          pick(g.Power),
 			Fans:           picks(g.Fans),
 			Throttling:     throttled(g.Throttling),
 		}

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -203,6 +205,48 @@ func TestToolList(t *testing.T) {
 	}
 }
 
+// The MCP bundle's manifest lists the tools for the client to show before the
+// server has started. It is written by hand, so it must be kept in step with
+// what the server registers.
+func TestBundleManifestListsTheServersTools(t *testing.T) {
+	cs := connect(t, from(t, fixture()))
+	res, err := cs.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var served []string
+	for _, tool := range res.Tools {
+		served = append(served, tool.Name)
+	}
+	sort.Strings(served)
+
+	data, err := os.ReadFile(filepath.FromSlash("mcpb/manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Tools []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		} `json:"tools"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	var listed []string
+	for _, tool := range manifest.Tools {
+		listed = append(listed, tool.Name)
+		if tool.Description == "" {
+			t.Errorf("mcpb/manifest.json: %s has no description", tool.Name)
+		}
+	}
+	sort.Strings(listed)
+
+	if !reflect.DeepEqual(listed, served) {
+		t.Errorf("mcpb/manifest.json lists %q, the server registers %q", listed, served)
+	}
+}
+
 func TestStatus(t *testing.T) {
 	cs := connect(t, from(t, fixture()))
 	got, _ := output[statusOutput](t, cs, "hwinfo_status", nil)
@@ -258,6 +302,10 @@ func TestStatusExplainsFailures(t *testing.T) {
 		}
 		if strings.Contains(got.Hint, leftToUser) != tt.manual {
 			t.Errorf("%v: hint = %q; leaving the fix to the user: want %v", tt.err, got.Hint, tt.manual)
+		}
+		// No hint may send an assistant off to raise anyone's privileges.
+		if errors.Is(tt.err, hwinfo.ErrAccessDenied) && !strings.Contains(got.Hint, "do not start the client or HWiNFO with other privileges") {
+			t.Errorf("%v: hint = %q, want it to rule out changing privileges", tt.err, got.Hint)
 		}
 	}
 }
@@ -505,7 +553,7 @@ func TestThermalOverview(t *testing.T) {
 			Temperature:    &reading{Label: "GPU Temperature", Display: "Temperatura GPU", Value: f(59.355), Unit: degC, Min: f(40), Max: f(66), Avg: f(55)},
 			HotSpot:        &reading{Label: "GPU Hot Spot Temperature", Display: "Temperatura de ponto quente da GPU", Value: f(70.594), Unit: degC, Min: f(50), Max: f(83), Avg: f(66)},
 			MemoryJunction: &reading{Label: "GPU Memory Junction Temperature", Display: "Temperatura de jun\u00e7\u00e3o da mem\u00f3ria GPU", Value: f(66), Unit: degC, Min: f(44), Max: f(70), Avg: f(60)},
-			BoardPower:     &reading{Label: "GPU Power", Display: "GPU Pot\u00eancia", Value: f(220.153), Unit: "W", Min: f(20), Max: f(310), Avg: f(150)},
+			Power:          &reading{Label: "GPU Power", Display: "GPU Pot\u00eancia", Value: f(220.153), Unit: "W", Min: f(20), Max: f(310), Avg: f(150)},
 			Fans:           []reading{{Label: "GPU Fan1", Display: "GPU Ventilador1", Value: f(1330), Unit: "RPM", Min: f(0), Max: f(1800), Avg: f(900)}},
 			Throttling:     &throttling{Occurred: true},
 		}},
@@ -522,6 +570,47 @@ func TestThermalOverview(t *testing.T) {
 		g, _ := json.MarshalIndent(got, "", "  ")
 		w, _ := json.MarshalIndent(want, "", "  ")
 		t.Errorf("thermal_overview:\n got %s\nwant %s", g, w)
+	}
+}
+
+// A CPU that was held at its temperature limit shows it in thermal_limit even
+// though no throttling flag was ever set. Reporting only the flags made such
+// a CPU look as if temperature had never limited it.
+func TestThermalOverviewReportsTheThermalLimit(t *testing.T) {
+	im := fixture()
+	im.Readings = append(im.Readings, hwinfotest.Reading{
+		Type: hwinfotest.Usage, Sensor: 1, Label: "Thermal Limit", Unit: "%", Value: 76.842, Min: 47.895, Max: 100.016, Avg: 73.685,
+	})
+	cs := connect(t, from(t, im))
+	got, raw := output[thermalOutput](t, cs, "thermal_overview", nil)
+
+	cpu := got.CPUs[0]
+	want := &reading{Label: "Thermal Limit", Value: f(76.842), Unit: "%", Min: f(47.895), Max: f(100.016), Avg: f(73.685)}
+	if !reflect.DeepEqual(cpu.ThermalLimit, want) {
+		t.Errorf("thermal limit = %+v, want %+v", cpu.ThermalLimit, want)
+	}
+	if cpu.Throttling == nil || cpu.Throttling.Active || cpu.Throttling.Occurred {
+		t.Errorf("throttling = %+v, want the flags reported as they are: clear", cpu.Throttling)
+	}
+
+	// The names on the wire are part of what clients rely on.
+	var wire struct {
+		CPUs []map[string]json.RawMessage `json:"cpus"`
+		GPUs []map[string]json.RawMessage `json:"gpus"`
+	}
+	if err := json.Unmarshal([]byte(raw), &wire); err != nil || len(wire.CPUs) != 1 || len(wire.GPUs) != 1 {
+		t.Fatalf("cannot read the devices back (%v): %s", err, raw)
+	}
+	for _, name := range []string{"thermal_limit", "thermal_throttling", "package_power", "temperature"} {
+		if _, ok := wire.CPUs[0][name]; !ok {
+			t.Errorf("the CPU has no %q field: %s", name, raw)
+		}
+	}
+	if _, ok := wire.GPUs[0]["power"]; !ok {
+		t.Errorf("the GPU has no \"power\" field: %s", raw)
+	}
+	if _, ok := wire.GPUs[0]["board_power"]; ok {
+		t.Errorf("the GPU's power is still called board_power: %s", raw)
 	}
 }
 

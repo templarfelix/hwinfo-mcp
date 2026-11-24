@@ -14,9 +14,12 @@
 //
 //	go run ./tools/release -version v1.2.3 -out dist
 //
-// It must be started from the repository root. Packing the bundle uses the
-// official mcpb tool through npx, so it needs Node.js; pass -mcpb "" to leave
-// the bundle and server.json out.
+// It must be started from the repository root. The bundle is written here, as
+// a zip archive like the plugin, and then checked with the official mcpb tool
+// through npx, which needs Node.js; pass -mcpb "" to skip that check. The job
+// that publishes a release skips it, so that no code from npm runs where the
+// release files are made: the same manifest was checked by the tests' trial
+// package on the way there.
 package main
 
 import (
@@ -60,7 +63,7 @@ func main() {
 
 	version := flag.String("version", "", "version to build, as a tag: v1.2.3")
 	out := flag.String("out", "dist", "directory to write the release files to")
-	mcpb := flag.String("mcpb", "npx --yes @anthropic-ai/mcpb@2.1.2", `command that runs the mcpb tool; "" skips the bundle and server.json`)
+	mcpb := flag.String("mcpb", "npx --yes @anthropic-ai/mcpb@2.1.2", `command that runs the official mcpb tool to check the bundle; "" skips the check`)
 	flag.Parse()
 
 	if !versionRE.MatchString(*version) {
@@ -122,44 +125,51 @@ func run(version, out string, mcpb []string) error {
 	}
 	artifacts = append(artifacts, "hwinfo-plugin.zip")
 
-	// The MCP bundle and its registry entry.
+	// The MCP bundle: a zip archive with the manifest at its top level, the
+	// icon next to it and the server where the manifest says it is.
+	bundleDir := filepath.Join(stage, "bundle")
+	for _, name := range []string{"manifest.json", bundleIcon} {
+		if err := copyFile(filepath.Join("mcpb", name), filepath.Join(bundleDir, name)); err != nil {
+			return err
+		}
+	}
+	if err := stamp(filepath.Join(bundleDir, "manifest.json"), devVersion, plain, 1); err != nil {
+		return err
+	}
+	if err := copyFile(exe["amd64"], filepath.Join(bundleDir, filepath.FromSlash(serverInArchive))); err != nil {
+		return err
+	}
+	bundle := filepath.Join(out, "hwinfo-mcp.mcpb")
+	if err := zipDir(bundleDir, bundle, sourceTime()); err != nil {
+		return err
+	}
+	// The official tool has the last word on the manifest and on whether it
+	// can read the archive back.
 	if len(mcpb) > 0 {
-		bundleDir := filepath.Join(stage, "bundle")
-		for _, name := range []string{"manifest.json", bundleIcon} {
-			if err := copyFile(filepath.Join("mcpb", name), filepath.Join(bundleDir, name)); err != nil {
-				return err
-			}
-		}
-		if err := stamp(filepath.Join(bundleDir, "manifest.json"), devVersion, plain, 1); err != nil {
-			return err
-		}
-		if err := copyFile(exe["amd64"], filepath.Join(bundleDir, filepath.FromSlash(serverInArchive))); err != nil {
-			return err
-		}
-		bundle := filepath.Join(out, "hwinfo-mcp.mcpb")
-		for _, args := range [][]string{{"validate", bundleDir}, {"pack", bundleDir, bundle}} {
+		for _, args := range [][]string{{"validate", bundleDir}, {"info", bundle}} {
 			tool := exec.Command(mcpb[0], append(mcpb[1:len(mcpb):len(mcpb)], args...)...)
 			if err := runCommand(tool); err != nil {
 				return fmt.Errorf("mcpb %s: %w", args[0], err)
 			}
 		}
-		artifacts = append(artifacts, "hwinfo-mcp.mcpb")
+	}
+	artifacts = append(artifacts, "hwinfo-mcp.mcpb")
 
-		digest, err := sha256File(bundle)
-		if err != nil {
-			return err
-		}
-		entry := filepath.Join(out, "server.json")
-		if err := copyFile(filepath.Join("mcpb", "server.json"), entry); err != nil {
-			return err
-		}
-		// The version appears twice: on its own and inside the download URL.
-		if err := stamp(entry, devVersion, plain, 2); err != nil {
-			return err
-		}
-		if err := stamp(entry, devSHA, digest, 1); err != nil {
-			return err
-		}
+	// The MCP Registry entry for that bundle.
+	digest, err := sha256File(bundle)
+	if err != nil {
+		return err
+	}
+	entry := filepath.Join(out, "server.json")
+	if err := copyFile(filepath.Join("mcpb", "server.json"), entry); err != nil {
+		return err
+	}
+	// The version appears twice: on its own and inside the download URL.
+	if err := stamp(entry, devVersion, plain, 2); err != nil {
+		return err
+	}
+	if err := stamp(entry, devSHA, digest, 1); err != nil {
+		return err
 	}
 
 	sort.Strings(artifacts)
@@ -200,8 +210,8 @@ func stamp(file, placeholder, value string, want int) error {
 	return os.WriteFile(file, bytes.ReplaceAll(data, []byte(placeholder), []byte(value)), 0o644)
 }
 
-// sourceTime is the timestamp given to every file in the plugin archive, so
-// that the same sources produce the same archive. It is the time of the last
+// sourceTime is the timestamp given to every file in the plugin archive and
+// in the bundle, so that the same sources produce the same archives. It is the time of the last
 // commit, or of SOURCE_DATE_EPOCH if that is set, or a fixed date when
 // neither is available.
 func sourceTime() time.Time {
