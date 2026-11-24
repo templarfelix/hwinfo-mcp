@@ -30,7 +30,7 @@ Windows side.
 
 ## Quick start
 
-Three steps: set up HWiNFO, install the plugin or the bundle, and ask.
+Three steps: set up HWiNFO, install the bundle or the plugin, and ask.
 
 ### 1. Install HWiNFO and switch on its shared memory
 
@@ -61,9 +61,26 @@ off by default, so switch it on once:
 The free edition of HWiNFO stops publishing after 12 hours of run time; see
 [HWiNFO settings](#hwinfo-settings).
 
-### 2. Install the plugin or the bundle
+### 2. Install the bundle or the plugin
 
-**Claude Code.** One command installs the plugin:
+There are four ways to install the server. From the easiest to the most
+involved:
+
+| Way | For | What it takes |
+|---|---|---|
+| The bundle | Claude Desktop | Download one file and open it. |
+| The plugin | Claude Code | One command. |
+| [The executable](#installing-the-server-by-hand) | Any MCP client | Download it and register it with the client yourself. |
+| [Your own build](#building-from-source) | Any MCP client | The same, after compiling it with Go. |
+
+**Claude Desktop: the bundle.** Download
+[`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
+and open it, or drag it into Claude Desktop. The bundle is new in v0.2.0 and
+has so far only been checked with the bundle tool itself. If it does not
+install, [install the server by hand](#installing-the-server-by-hand), and
+please open an issue.
+
+**Claude Code: the plugin.** One command installs it:
 
 ```
 claude plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
@@ -83,13 +100,6 @@ for reading the sensors, so there is no executable to download. Inside a
 session (version 2.1.275 or later),
 `/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp` adds the
 marketplace and opens the plugin's page, where you install it.
-
-**Claude Desktop.** Download
-[`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-and open it, or drag it into Claude Desktop. The bundle is new in v0.2.0 and
-has so far only been checked with the bundle tool itself. If it does not
-install, [install the server by hand](#installing-the-server-by-hand), and
-please open an issue.
 
 **Any other MCP client**, or if you would rather register the server yourself:
 see [Installing the server by hand](#installing-the-server-by-hand).
@@ -246,7 +256,7 @@ assistant can tell you why; see [Troubleshooting](#troubleshooting).
 
 ## Installing the server by hand
 
-The plugin and the bundle carry the server with them. For any other MCP client,
+The bundle and the plugin carry the server with them. For any other MCP client,
 or to register the server yourself, download the executable from the
 [latest release](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
 In PowerShell:
@@ -261,15 +271,6 @@ On Windows on Arm, take `hwinfo-mcp-windows-arm64.exe` instead. To check the
 download, compare `Get-FileHash "$dir\hwinfo-mcp.exe"` with the `SHA256SUMS`
 file of the release. The executable is not code-signed, so a browser or Windows
 may warn about it.
-
-Or build it yourself with Go:
-
-```
-go install github.com/templarfelix/hwinfo-mcp@latest
-```
-
-That puts `hwinfo-mcp.exe` in Go's bin folder, normally `%USERPROFILE%\go\bin`;
-use that path below.
 
 Then register the executable with your client.
 
@@ -299,6 +300,17 @@ the app.
 
 **Any other MCP client** that can start a stdio server works the same way: the
 command is the path to the executable, with no arguments.
+
+### Building from source
+
+Instead of downloading the executable, you can build it with Go:
+
+```
+go install github.com/templarfelix/hwinfo-mcp@latest
+```
+
+That puts `hwinfo-mcp.exe` in Go's bin folder, normally `%USERPROFILE%\go\bin`;
+register that path as described above.
 
 ## Tools
 

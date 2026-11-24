@@ -31,7 +31,7 @@ PC: ejecuta el servidor del lado de Windows.
 
 ## Inicio rápido
 
-Son tres pasos: preparar HWiNFO, instalar el plugin o el paquete, y preguntar.
+Son tres pasos: preparar HWiNFO, instalar el paquete o el plugin, y preguntar.
 
 ### 1. Instala HWiNFO y activa la memoria compartida
 
@@ -65,9 +65,25 @@ desactivada, así que actívala una vez:
 La edición gratuita de HWiNFO deja de publicar tras 12 horas de ejecución;
 consulta [Configuración de HWiNFO](#configuración-de-hwinfo).
 
-### 2. Instala el plugin o el paquete
+### 2. Instala el paquete o el plugin
 
-**Claude Code.** Un comando instala el plugin:
+Hay cuatro formas de instalar el servidor. De la más fácil a la más laboriosa:
+
+| Forma | Para | Qué requiere |
+|---|---|---|
+| El paquete | Claude Desktop | Descargar un archivo y abrirlo. |
+| El plugin | Claude Code | Un comando. |
+| [El ejecutable](#instalar-el-servidor-a-mano) | Cualquier cliente MCP | Descargarlo y registrarlo tú mismo en el cliente. |
+| [Tu propia compilación](#compilar-desde-el-código-fuente) | Cualquier cliente MCP | Lo mismo, después de compilarlo con Go. |
+
+**Claude Desktop: el paquete.** Descarga
+[`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
+y ábrelo, o arrástralo a Claude Desktop. El paquete es nuevo en la v0.2.0 y
+hasta ahora solo se ha comprobado con la propia herramienta de empaquetado. Si
+no se instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y,
+por favor, abre una issue.
+
+**Claude Code: el plugin.** Un comando lo instala:
 
 ```
 claude plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
@@ -87,13 +103,6 @@ para leer los sensores, así que no hay ningún ejecutable que descargar. Dentro
 de una sesión (versión 2.1.275 o posterior),
 `/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp` añade el
 marketplace y abre la página del plugin, donde lo instalas.
-
-**Claude Desktop.** Descarga
-[`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-y ábrelo, o arrástralo a Claude Desktop. El paquete es nuevo en la v0.2.0 y
-hasta ahora solo se ha comprobado con la propia herramienta de empaquetado. Si
-no se instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y,
-por favor, abre una issue.
 
 **Cualquier otro cliente MCP**, o si prefieres registrar el servidor tú mismo:
 consulta [Instalar el servidor a mano](#instalar-el-servidor-a-mano).
@@ -254,7 +263,7 @@ lecturas se detengan, el asistente puede decirte por qué; consulta
 
 ## Instalar el servidor a mano
 
-El plugin y el paquete ya traen el servidor. Para cualquier otro cliente MCP, o
+El paquete y el plugin ya traen el servidor. Para cualquier otro cliente MCP, o
 para registrar el servidor tú mismo, descarga el ejecutable de la
 [última versión](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
 En PowerShell:
@@ -269,15 +278,6 @@ En Windows sobre Arm, usa `hwinfo-mcp-windows-arm64.exe`. Para comprobar la
 descarga, compara `Get-FileHash "$dir\hwinfo-mcp.exe"` con el archivo
 `SHA256SUMS` de la versión. El ejecutable no tiene firma de código, por lo que
 el navegador o Windows pueden mostrar una advertencia.
-
-O compílalo tú mismo con Go:
-
-```
-go install github.com/templarfelix/hwinfo-mcp@latest
-```
-
-Eso deja `hwinfo-mcp.exe` en la carpeta bin de Go, normalmente
-`%USERPROFILE%\go\bin`; usa esa ruta más abajo.
 
 Después, registra el ejecutable en tu cliente.
 
@@ -307,6 +307,17 @@ la aplicación.
 
 **Cualquier otro cliente MCP** capaz de iniciar un servidor stdio funciona
 igual: el comando es la ruta del ejecutable, sin argumentos.
+
+### Compilar desde el código fuente
+
+En lugar de descargar el ejecutable, puedes compilarlo con Go:
+
+```
+go install github.com/templarfelix/hwinfo-mcp@latest
+```
+
+Eso deja `hwinfo-mcp.exe` en la carpeta bin de Go, normalmente
+`%USERPROFILE%\go\bin`; registra esa ruta como se describe arriba.
 
 ## Herramientas
 
