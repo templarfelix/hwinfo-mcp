@@ -96,7 +96,9 @@ While it is not, the answer names a file, `Setup-HWiNFO.cmd`, in the
 extension's folder. Running it is your step: paste its path into the Run box
 (Win+R). It unpacks HWiNFO into a folder of its own, puts a settings file next
 to it that switches the publishing on, and starts it. When Windows asks for
-administrator rights, the publisher it names should be REALiX.
+administrator rights, the publisher it names should be REALiX. HWiNFO has to
+keep running for the readings to be there; with that settings file, closing
+its window only minimises it.
 [The copy of HWiNFO in the bundle](#the-copy-of-hwinfo-in-the-bundle) says
 exactly what the file does and what it leaves alone.
 
@@ -288,7 +290,7 @@ does not. In it:
 | File | What it is |
 |---|---|
 | `hwi_860.zip` | HWiNFO's portable package, version 8.60, exactly as its author publishes it. Its SHA-256 is `0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c`, and each executable in it carries REALiX's signature. It is included with its author's permission. |
-| `HWiNFO64.INI` | A settings file of this project: sensors-only mode, Shared Memory Support on, no welcome screen. |
+| `HWiNFO64.INI` | A settings file of this project: sensors-only mode, Shared Memory Support on, no welcome screen, and a Sensors window that minimises instead of closing, so that closing it does not stop the readings. |
 | `Setup-HWiNFO.cmd` | A setup helper of this project. |
 | `README.txt` | The same explanation, next to the files. |
 
@@ -504,7 +506,10 @@ step in its settings. Two things about those runs: the machine already had
 HWiNFO installed, with HWiNFO's per-user settings in the registry, so a PC that
 has never run HWiNFO has not been tried; and the helper learned to stand back
 from an installed HWiNFO after them, which only automated tests have exercised
-since. Nothing of this has been tried on Windows on Arm.
+since. The setting that keeps HWiNFO running when its window is closed was
+added to the settings file after those runs too, and has not been tried with
+the bundled copy; it is the option the HWiNFO installed on that machine runs
+with. Nothing of this has been tried on Windows on Arm.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If

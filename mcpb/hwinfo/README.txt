@@ -22,7 +22,9 @@ HWINFO_PACKAGE_FILE
 HWiNFO64.INI
     A settings file written by the hwinfo-mcp project, not by HWiNFO's author.
     With it HWiNFO starts in sensors-only mode with "Shared Memory Support"
-    switched on, which is how hwinfo-mcp reads the sensors.
+    switched on, which is how hwinfo-mcp reads the sensors. Closing the
+    Sensors window then minimises HWiNFO instead of ending it, so that the
+    readings keep coming; Exit in the menu of HWiNFO's icon ends it.
 
 Setup-HWiNFO.cmd
     A helper written by the hwinfo-mcp project, not by HWiNFO's author.

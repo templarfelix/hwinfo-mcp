@@ -9,8 +9,9 @@ rem   1. It unpacks HWiNFO's portable package, which sits next to this file,
 rem      into the folder hwinfo-mcp\HWiNFO of your local application data,
 rem      unless HWiNFO is already there.
 rem   2. It puts this project's settings file next to it, which starts HWiNFO
-rem      in sensors-only mode with Shared Memory Support on, unless a settings
-rem      file is already there.
+rem      in sensors-only mode with Shared Memory Support on and keeps it
+rem      running when its window is closed, unless a settings file is already
+rem      there.
 rem   3. It starts HWiNFO, unless a HWiNFO is already running. Windows then
 rem      asks for administrator rights, which HWiNFO needs to reach the
 rem      hardware.
@@ -86,7 +87,8 @@ if /I not "%EXE%"=="HWiNFO64.exe" goto settings_by_hand
 if exist "%DEST%\HWiNFO64.INI" goto settings_kept
 copy /Y "%SRC%HWiNFO64.INI" "%DEST%\HWiNFO64.INI" >nul
 if errorlevel 1 goto settings_failed
-echo Added the settings file: sensors-only mode, Shared Memory Support on.
+echo Added the settings file: sensors-only mode, Shared Memory Support on,
+echo and closing the Sensors window minimises HWiNFO instead of ending it.
 goto start
 
 :settings_kept

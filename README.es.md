@@ -96,7 +96,9 @@ Mientras no lo esté, la respuesta indica un archivo, `Setup-HWiNFO.cmd`, en la
 carpeta de la extensión. Ejecutarlo es un paso tuyo: pega su ruta en el cuadro
 Ejecutar (Win+R). Descomprime HWiNFO en una carpeta propia, pone al lado un
 archivo de configuración que activa la publicación, y lo inicia. Cuando Windows
-pida permisos de administrador, el editor que muestre debe ser REALiX.
+pida permisos de administrador, el editor que muestre debe ser REALiX. HWiNFO
+tiene que seguir en ejecución para que haya lecturas; con ese archivo de
+configuración, cerrar su ventana solo lo minimiza.
 [La copia de HWiNFO en el paquete](#la-copia-de-hwinfo-en-el-paquete) dice
 exactamente qué hace el archivo y qué no toca.
 
@@ -295,7 +297,7 @@ no tiene. En ella:
 | Archivo | Qué es |
 |---|---|
 | `hwi_860.zip` | El paquete portátil de HWiNFO, versión 8.60, exactamente como lo publica su autor. Su SHA-256 es `0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c`, y cada ejecutable que contiene lleva la firma de REALiX. Está incluido con el permiso de su autor. |
-| `HWiNFO64.INI` | Un archivo de configuración de este proyecto: modo solo sensores, Shared Memory Support activado, sin pantalla de bienvenida. |
+| `HWiNFO64.INI` | Un archivo de configuración de este proyecto: modo solo sensores, Shared Memory Support activado, sin pantalla de bienvenida, y una ventana de sensores que se minimiza en vez de cerrarse, para que cerrarla no detenga las lecturas. |
 | `Setup-HWiNFO.cmd` | Un asistente de instalación de este proyecto. |
 | `README.txt` | La misma explicación, junto a los archivos. |
 
@@ -522,7 +524,11 @@ tenía HWiNFO instalado, con la configuración por usuario de HWiNFO en el
 registro de Windows, así que no se ha probado un PC que nunca haya ejecutado
 HWiNFO; y el archivo aprendió a no hacer nada donde hay un HWiNFO instalado
 después de ellas, algo que desde entonces solo han ejercitado las pruebas
-automatizadas. Nada de esto se ha probado en Windows sobre Arm.
+automatizadas. La opción que mantiene HWiNFO en ejecución cuando se cierra su
+ventana también entró en el archivo de configuración después de esas pruebas,
+y no se ha probado con la copia del paquete; es la opción con la que funciona
+el HWiNFO instalado en aquella máquina. Nada de esto se ha probado en Windows
+sobre Arm.
 
 Los patrones para procesadores Intel, modelos Ryzen más antiguos y tarjetas
 gráficas AMD o Intel siguen la nomenclatura de HWiNFO, pero no se han

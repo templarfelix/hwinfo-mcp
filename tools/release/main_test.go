@@ -473,7 +473,9 @@ func TestRepositoryHWiNFOSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"[Settings]", "SensorsOnly=1", "SensorsSM=1"} {
+	// Shared memory is what the server reads. Without the last one, closing
+	// the Sensors window ends HWiNFO, and the readings with it.
+	for _, want := range []string{"[Settings]", "SensorsOnly=1", "SensorsSM=1", "MinimalizeSensorsClose=1"} {
 		if !bytes.Contains(settings, []byte(want)) {
 			t.Errorf("HWiNFO64.INI lacks %s", want)
 		}
