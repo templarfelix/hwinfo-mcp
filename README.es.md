@@ -511,15 +511,18 @@ El paquete que trae HWiNFO se instaló en Claude Desktop para Windows (paquete
 6.28899.6.0) en la misma máquina, a partir de una compilación de esta versión.
 El paquete dentro de la extensión instalada coincidió con su SHA-256 fijado y,
 sin ningún HWiNFO en ejecución, `hwinfo_status` indicó el archivo de
-instalación. Ejecutado a mano, ese archivo descomprimió el paquete e inició esa
-copia después de que Windows pidiera permisos de administrador, y cuatro
-segundos después la copia estaba publicando sus lecturas, sin ningún paso en su
-configuración. Dos salvedades sobre esa prueba: la máquina ya tenía HWiNFO
-instalado, con la configuración por usuario de HWiNFO en el registro de
-Windows, así que no se ha probado un PC que nunca haya ejecutado HWiNFO; y el
-archivo aprendió a no hacer nada donde hay un HWiNFO instalado después de ella,
-algo que desde entonces solo han ejercitado las pruebas automatizadas. Nada de
-esto se ha probado en Windows sobre Arm.
+instalación. Ejecutado a mano, ese archivo descomprimió el paquete, añadió el
+archivo de configuración e inició esa copia después de que Windows pidiera
+permisos de administrador, y HWiNFO conservó esa configuración al reescribir el
+archivo. Si la copia estaba publicando solo se comprobó en una segunda
+ejecución, con la copia y su configuración ya en su sitio: el archivo la
+inició, y cuatro segundos después estaba publicando sus lecturas, sin ningún
+paso en su configuración. Dos salvedades sobre esas pruebas: la máquina ya
+tenía HWiNFO instalado, con la configuración por usuario de HWiNFO en el
+registro de Windows, así que no se ha probado un PC que nunca haya ejecutado
+HWiNFO; y el archivo aprendió a no hacer nada donde hay un HWiNFO instalado
+después de ellas, algo que desde entonces solo han ejercitado las pruebas
+automatizadas. Nada de esto se ha probado en Windows sobre Arm.
 
 Los patrones para procesadores Intel, modelos Ryzen más antiguos y tarjetas
 gráficas AMD o Intel siguen la nomenclatura de HWiNFO, pero no se han

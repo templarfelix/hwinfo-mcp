@@ -505,14 +505,17 @@ O pacote que traz o HWiNFO foi instalado no Claude Desktop para Windows (pacote
 6.28899.6.0) na mesma máquina, a partir de uma compilação desta versão. O
 pacote dentro da extensão instalada conferiu com o SHA-256 fixado, e, sem
 nenhum HWiNFO rodando, `hwinfo_status` indicou o auxiliar de instalação.
-Executado à mão, o auxiliar descompactou o pacote e iniciou essa cópia depois
-que o Windows pediu permissão de administrador, e quatro segundos depois a
-cópia estava publicando as leituras, sem nenhum passo nas configurações. Duas
-ressalvas sobre esse teste: a máquina já tinha o HWiNFO instalado, com as
-configurações por usuário do HWiNFO no registro do Windows, então um PC que nunca rodou o
-HWiNFO não foi testado; e o auxiliar só aprendeu a não mexer onde há um HWiNFO
-instalado depois dele, o que desde então só os testes automatizados
-exercitaram. Nada disso foi testado no Windows em Arm.
+Executado à mão, o auxiliar descompactou o pacote, acrescentou o arquivo de
+configuração e iniciou essa cópia depois que o Windows pediu permissão de
+administrador, e o HWiNFO manteve essas configurações ao regravar o arquivo. Se
+a cópia estava publicando só foi conferido em uma segunda execução, com a cópia
+e as configurações já no lugar: o auxiliar a iniciou, e quatro segundos depois
+ela estava publicando as leituras, sem nenhum passo nas configurações. Duas
+ressalvas sobre esses testes: a máquina já tinha o HWiNFO instalado, com as
+configurações por usuário do HWiNFO no registro do Windows, então um PC que
+nunca rodou o HWiNFO não foi testado; e o auxiliar só aprendeu a não mexer onde
+há um HWiNFO instalado depois deles, o que desde então só os testes
+automatizados exercitaram. Nada disso foi testado no Windows em Arm.
 
 Os padrões para processadores Intel, modelos Ryzen mais antigos e placas de
 vídeo AMD ou Intel seguem a nomenclatura do HWiNFO, mas não foram conferidos

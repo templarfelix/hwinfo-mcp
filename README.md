@@ -495,13 +495,16 @@ The bundle that carries HWiNFO was installed in Claude Desktop for Windows
 (package 6.28899.6.0) on the same machine, from a build of this version. The
 package inside the installed extension matched its pinned SHA-256, and while no
 HWiNFO was running `hwinfo_status` named the setup helper. Run by hand, the
-helper unpacked the package and started that copy after Windows asked for
-administrator rights, and four seconds later the copy was publishing its
-readings with no step in its settings. Two things about that run: the machine
-already had HWiNFO installed, with HWiNFO's per-user settings in the registry,
-so a PC that has never run HWiNFO has not been tried; and the helper learned to
-stand back from an installed HWiNFO after it, which only automated tests have
-exercised since. Nothing of this has been tried on Windows on Arm.
+helper unpacked the package, added the settings file and started that copy
+after Windows asked for administrator rights, and HWiNFO kept those settings
+when it rewrote the file. Whether that copy was publishing was only looked at
+in a second run, with the copy and its settings already in place: the helper
+started it, and four seconds later it was publishing its readings, with no
+step in its settings. Two things about those runs: the machine already had
+HWiNFO installed, with HWiNFO's per-user settings in the registry, so a PC that
+has never run HWiNFO has not been tried; and the helper learned to stand back
+from an installed HWiNFO after them, which only automated tests have exercised
+since. Nothing of this has been tried on Windows on Arm.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If
