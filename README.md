@@ -185,26 +185,29 @@ into a load test:
 ### What an answer is built from
 
 This is part of what `thermal_overview` returned on the development machine,
-shortened. The CPU is at 61.75 °C now, peaked at 95.4 °C since HWiNFO started,
-and no throttling flag was raised:
+shortened. The CPU is at 60 °C now and peaked at 95.4 °C since HWiNFO started.
+No throttling flag was raised, yet `thermal_limit` peaked at 100 %: at that
+peak the CPU was holding itself at its temperature limit.
 
 ```json
 {
   "active": true,
-  "last_update": "2026-11-23T19:01:38-03:00",
+  "last_update": "2026-11-23T22:55:31-03:00",
   "cpus": [
     {
       "name": "AMD Ryzen 9 9950X3D",
-      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 61.75, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 70.259 },
-      "package_power": { "label": "CPU Package Power", "value": 84.284, "unit": "W", "min": 55.714, "max": 237.232, "avg": 129.425 },
+      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 60.125, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 69.557 },
+      "package_power": { "label": "CPU Package Power", "value": 98.109, "unit": "W", "min": 55.714, "max": 237.232, "avg": 125.216 },
+      "thermal_limit": { "label": "Thermal Limit", "value": 58.913, "unit": "%", "min": 51.351, "max": 100.016, "avg": 69.562 },
       "thermal_throttling": { "active": false, "occurred": false }
     }
   ],
   "gpus": [
     {
       "name": "NVIDIA GeForce RTX 5080",
-      "temperature": { "label": "GPU Temperature", "value": 48.434, "unit": "°C", "min": 37.316, "max": 67.414, "avg": 51.215 },
-      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 53.531, "unit": "°C", "min": 41.5, "max": 86.031, "avg": 59.193 },
+      "temperature": { "label": "GPU Temperature", "value": 39.813, "unit": "°C", "min": 36.895, "max": 72.27, "avg": 52.341 },
+      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 44.188, "unit": "°C", "min": 41, "max": 94.344, "avg": 60.328 },
+      "power": { "label": "GPU Power", "value": 25.117, "unit": "W", "min": 20.717, "max": 319.839, "avg": 115.054 },
       "thermal_throttling": { "active": false, "occurred": false }
     }
   ]
@@ -321,7 +324,7 @@ register that path as described above.
 | `hwinfo_status` | Whether HWiNFO is publishing, when it last polled, how many sensors and readings there are, and whether the snapshot was taken under HWiNFO's lock. When something is wrong it says what and how to fix it. |
 | `list_sensors` | Every sensor with the number of readings of each type. |
 | `get_readings` | Current readings grouped by sensor, narrowed by the filters below. |
-| `thermal_overview` | The readings that say how hot the PC runs: per CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power and throttling flags; per GPU the core, hot spot and memory junction temperatures, board power, fans and thermal limit flag; plus the remaining temperatures and fan speeds. |
+| `thermal_overview` | The readings that say how hot the PC runs: per CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power, how much of its temperature limit it uses and the throttling flags; per GPU the core, hot spot and memory junction temperatures, power draw, fans and thermal limit flag; plus the remaining temperatures and fan speeds. |
 
 All four are annotated as read-only, and only `get_readings` takes arguments,
 all of them optional:
@@ -397,10 +400,12 @@ The labels of that machine are kept as a test fixture
 field is covered by a regression test built from it.
 
 The plugin was installed in Claude Code 2.1.319 through the marketplace, from
-the published release: the download matches its checksum, its server connects,
-and its tools and skills register. The MCP bundle of v0.2.0 was installed in
-Claude Desktop 6.6395.1 for Windows: its server connects and its four tools
-register.
+a published release: the download matches its checksum, its server connects,
+and its tools and skills register. A bundle packed with the official `mcpb`
+tool was installed in Claude Desktop 6.6395.1 for Windows: its server connected
+and its four tools registered. The release tool now writes the bundle itself;
+the official tool reads that file, but no Claude Desktop had opened one when
+this was written.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If

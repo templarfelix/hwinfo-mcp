@@ -189,26 +189,29 @@ transforma duas perguntas em um teste de carga:
 ### Do que uma resposta é feita
 
 Este é um trecho, resumido, do que `thermal_overview` devolveu na máquina de
-desenvolvimento. A CPU está a 61,75 °C agora, chegou a 95,4 °C desde que o
-HWiNFO foi aberto, e nenhum indicador de throttling foi acionado:
+desenvolvimento. A CPU está a 60 °C agora e chegou a 95,4 °C desde que o HWiNFO
+foi aberto. Nenhum indicador de throttling foi acionado, mas `thermal_limit`
+chegou a 100 %: naquele pico a CPU estava se mantendo no limite de temperatura.
 
 ```json
 {
   "active": true,
-  "last_update": "2026-11-23T19:01:38-03:00",
+  "last_update": "2026-11-23T22:55:31-03:00",
   "cpus": [
     {
       "name": "AMD Ryzen 9 9950X3D",
-      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 61.75, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 70.259 },
-      "package_power": { "label": "CPU Package Power", "value": 84.284, "unit": "W", "min": 55.714, "max": 237.232, "avg": 129.425 },
+      "temperature": { "label": "CPU (Tctl/Tdie)", "value": 60.125, "unit": "°C", "min": 51.5, "max": 95.375, "avg": 69.557 },
+      "package_power": { "label": "CPU Package Power", "value": 98.109, "unit": "W", "min": 55.714, "max": 237.232, "avg": 125.216 },
+      "thermal_limit": { "label": "Thermal Limit", "value": 58.913, "unit": "%", "min": 51.351, "max": 100.016, "avg": 69.562 },
       "thermal_throttling": { "active": false, "occurred": false }
     }
   ],
   "gpus": [
     {
       "name": "NVIDIA GeForce RTX 5080",
-      "temperature": { "label": "GPU Temperature", "value": 48.434, "unit": "°C", "min": 37.316, "max": 67.414, "avg": 51.215 },
-      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 53.531, "unit": "°C", "min": 41.5, "max": 86.031, "avg": 59.193 },
+      "temperature": { "label": "GPU Temperature", "value": 39.813, "unit": "°C", "min": 36.895, "max": 72.27, "avg": 52.341 },
+      "hot_spot": { "label": "GPU Hot Spot Temperature", "value": 44.188, "unit": "°C", "min": 41, "max": 94.344, "avg": 60.328 },
+      "power": { "label": "GPU Power", "value": 25.117, "unit": "W", "min": 20.717, "max": 319.839, "avg": 115.054 },
       "thermal_throttling": { "active": false, "occurred": false }
     }
   ]
@@ -327,7 +330,7 @@ Isso coloca o `hwinfo-mcp.exe` na pasta bin do Go, normalmente
 | `hwinfo_status` | Se o HWiNFO está publicando, quando foi a última leitura, quantos sensores e leituras existem e se a cópia foi feita com a trava do HWiNFO. Quando algo está errado, diz o quê e como corrigir. |
 | `list_sensors` | Todos os sensores, com a quantidade de leituras de cada tipo. |
 | `get_readings` | As leituras atuais agrupadas por sensor, restritas pelos filtros abaixo. |
-| `thermal_overview` | As leituras que mostram o quanto o PC esquenta: por CPU, a temperatura de controle (Tctl/Tdie ou do encapsulamento), a média do die, as temperaturas por CCD, o núcleo mais quente, a potência do encapsulamento e os indicadores de throttling; por GPU, as temperaturas do núcleo, do hot spot e da junção da memória, a potência da placa, as ventoinhas e o indicador de limite térmico; além das demais temperaturas e rotações de ventoinhas. |
+| `thermal_overview` | As leituras que mostram o quanto o PC esquenta: por CPU, a temperatura de controle (Tctl/Tdie ou do encapsulamento), a média do die, as temperaturas por CCD, o núcleo mais quente, a potência do encapsulamento, quanto do limite de temperatura ela usa e os indicadores de throttling; por GPU, as temperaturas do núcleo, do hot spot e da junção da memória, a potência consumida, as ventoinhas e o indicador de limite térmico; além das demais temperaturas e rotações de ventoinhas. |
 
 As quatro são anotadas como somente leitura, e só `get_readings` recebe
 argumentos, todos opcionais:
@@ -405,11 +408,13 @@ Os rótulos dessa máquina ficam guardados como fixture de teste
 (`internal/hwinfo/testdata`), e o primeiro padrão de cada campo de
 `thermal_overview` é coberto por um teste de regressão feito a partir dela.
 
-O plugin foi instalado no Claude Code 2.1.319 pelo marketplace, a partir da
+O plugin foi instalado no Claude Code 2.1.319 pelo marketplace, a partir de uma
 release publicada: o download confere com o checksum, o servidor conecta, e as
-ferramentas e as skills são registradas. O pacote MCP da v0.2.0 foi instalado
-no Claude Desktop 6.6395.1 para Windows: o servidor conecta e as quatro
-ferramentas são registradas.
+ferramentas e as skills são registradas. Um pacote montado com a ferramenta
+oficial `mcpb` foi instalado no Claude Desktop 6.6395.1 para Windows: o
+servidor conectou e as quatro ferramentas foram registradas. Hoje a própria
+ferramenta de release monta o pacote; a ferramenta oficial lê esse arquivo, mas
+nenhum Claude Desktop tinha aberto um quando este texto foi escrito.
 
 Os padrões para processadores Intel, modelos Ryzen mais antigos e placas de
 vídeo AMD ou Intel seguem a nomenclatura do HWiNFO, mas não foram conferidos
