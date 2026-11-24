@@ -572,7 +572,11 @@ MCP Go SDK.
 
 1. Push a tag such as `v1.2.3`. CI runs `go run ./tools/release` and attaches
    the executables, the plugin, the two bundles, `server.json` and
-   `SHA256SUMS` to the release. The same command run by hand builds the same
+   `SHA256SUMS` to the release. A last job then lists the release in the MCP
+   Registry from that `server.json`; it signs in as this repository with a
+   token GitHub issues to the job, so nothing is stored and nobody has to sign
+   in. `gh workflow run registry.yml -f version=v1.2.3` does the same for a
+   release that is already out. The release command run by hand builds the same
    files into `dist/`, which is how to try them before tagging:
    `claude --plugin-dir dist/hwinfo-plugin.zip` loads the plugin for one
    session.

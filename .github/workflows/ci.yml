@@ -127,3 +127,18 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             "${flags[@]}"
+
+  # Lists the release in the MCP Registry. It is a job of its own because it
+  # runs the registry's tool, which is downloaded: that tool never runs where
+  # the release files are made, and this job cannot write to the repository.
+  # A pre-release is not listed.
+  registry:
+    name: MCP Registry
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    needs: release
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/registry.yml
+    with:
+      version: ${{ github.ref_name }}

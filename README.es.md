@@ -593,8 +593,14 @@ oficial de MCP para Go.
 
 1. Envía una etiqueta como `v1.2.3`. El CI ejecuta `go run ./tools/release` y
    adjunta a la versión los ejecutables, el plugin, los dos paquetes,
-   `server.json` y `SHA256SUMS`. El mismo comando, ejecutado a mano, genera los
-   mismos archivos en `dist/`, y así es como se prueban antes de etiquetar:
+   `server.json` y `SHA256SUMS`. Un último job lista entonces la versión en el
+   MCP Registry a partir de ese `server.json`; se identifica como este
+   repositorio con un token que GitHub emite para el job, así que no se guarda
+   nada y nadie tiene que iniciar sesión.
+   `gh workflow run registry.yml -f version=v1.2.3` hace lo mismo para una
+   versión que ya está publicada. El comando de publicación, ejecutado a mano,
+   genera los mismos archivos en `dist/`, y así es como se prueban antes de
+   etiquetar:
    `claude --plugin-dir dist/hwinfo-plugin.zip` carga el plugin durante una
    sesión.
 2. Con la versión publicada, ejecuta

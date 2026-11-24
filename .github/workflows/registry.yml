@@ -1,0 +1,103 @@
+name: MCP Registry
+
+# Lists a release in the official MCP Registry, from the server.json that the
+# release carries. CI calls this after it has published a release; it can also
+# be started by hand for a release that is already out:
+#
+#   gh workflow run registry.yml -f version=v1.2.3
+#
+# Nobody signs in and no secret is stored. The registry trusts a token that
+# GitHub issues to the job and that says which repository the job runs for,
+# and lets it publish under io.github.<owner of that repository>/.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Release to list, as its tag: v1.2.3"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release to list, as its tag: v1.2.3"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  publish:
+    name: List ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # the token the registry trusts
+      contents: read
+    env:
+      # Taken into the scripts from the environment, never pasted into them.
+      VERSION: ${{ inputs.version }}
+      # The registry's own tool, which is the one program here that this
+      # repository did not write. It is pinned to one release and to the
+      # SHA-256 that release's checksums file gives for this archive; move
+      # both together, on purpose.
+      PUBLISHER_VERSION: v1.8.16
+      PUBLISHER_SHA256: 6e2f799550cf843c6fd3350498d56cc49be3dc0af1e6237eb0e6435c7a9d5c05
+      REGISTRY: https://registry.modelcontextprotocol.io
+    steps:
+      - name: Check the version asked for
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::\"$VERSION\" is not a release tag such as v1.2.3"
+            exit 1
+          fi
+
+      # The entry is the one the release was published with, so that what the
+      # registry lists is what CI built: its bundle's address and SHA-256.
+      - name: Fetch the release's registry entry
+        run: |
+          curl --fail --location --silent --show-error --output server.json \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${VERSION}/server.json"
+          described="v$(jq -r .version server.json)"
+          if [[ "$described" != "$VERSION" ]]; then
+            echo "::error::the entry of $VERSION describes $described"
+            exit 1
+          fi
+
+      # An entry cannot be changed once it is in the registry. One that is
+      # already there is left alone, so that this job can be run again.
+      - name: See whether the registry has it already
+        id: listed
+        run: |
+          name=$(jq -r .name server.json)
+          version=$(jq -r .version server.json)
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            "$REGISTRY/v0/servers/$(jq -rn --arg n "$name" '$n|@uri')/versions/$version")
+          case "$status" in
+            200)
+              echo "::notice::$name $version is already in the registry; nothing was changed."
+              echo "already=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "already=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::the registry answered $status when asked for $name $version"
+              exit 1
+              ;;
+          esac
+
+      - name: Fetch the registry's publisher
+        if: steps.listed.outputs.already == 'false'
+        run: |
+          archive=mcp-publisher_linux_amd64.tar.gz
+          curl --fail --location --silent --show-error --output "$archive" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/$archive"
+          echo "${PUBLISHER_SHA256}  $archive" | sha256sum --check --strict
+          tar -xzf "$archive" mcp-publisher
+
+      - name: Publish
+        if: steps.listed.outputs.already == 'false'
+        run: |
+          ./mcp-publisher validate server.json
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish server.json
