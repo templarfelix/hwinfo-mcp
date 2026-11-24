@@ -257,8 +257,9 @@ Autorun=1
 **O limite de 12 horas.** A edição gratuita do HWiNFO desliga o Shared Memory
 Support depois de 12 horas de execução, e então é preciso ativá-lo de novo nas
 configurações. O HWiNFO Pro não tem esse limite. Ativar de novo é um passo seu:
-este projeto não faz isso por você. Quando as leituras pararem, o assistente
-sabe dizer o motivo; veja [Solução de problemas](#solução-de-problemas).
+este projeto não faz isso por você, e as ferramentas avisam o assistente para
+não fazer. Quando as leituras pararem, o assistente sabe dizer o motivo; veja
+[Solução de problemas](#solução-de-problemas).
 
 ## Instalando o servidor manualmente
 
