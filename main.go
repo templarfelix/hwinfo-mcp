@@ -47,7 +47,9 @@ func buildVersion() string {
 
 const instructions = `Read-only access to the hardware sensors that HWiNFO monitors on this Windows PC: temperatures, voltages, fan speeds, power draw, clocks and usage.
 
-Start with thermal_overview for the key CPU and GPU temperatures. For anything else, call list_sensors to see what exists, then get_readings with a sensor, label or types filter: there are hundreds of readings and one call returns at most 300.
+Start with thermal_overview for the key CPU and GPU temperatures. For anything else, call list_sensors to see what exists, then get_readings with a sensor, label or types filter: there are hundreds of readings and one call returns at most 300; next_offset says where to continue.
+
+Whether a reading ever went too high or too low is answered by its minimum and maximum (get_readings with stats), which cover every poll since HWiNFO started. sample_readings watches readings for a few seconds instead and tells when their extremes happened, so that they can be set against what other readings did at that moment.
 
 Labels are HWiNFO's original English ones; when HWiNFO runs in another language or a sensor was renamed, the displayed name is given alongside. If a tool reports that sensor data is unavailable, hwinfo_status explains why and how to fix it.`
 
@@ -87,19 +89,32 @@ func main() {
 type source func() (*hwinfo.Snapshot, error)
 
 type handlers struct {
-	src source
-	now func() time.Time
+	src   source
+	now   func() time.Time
+	sleep func(context.Context, time.Duration) error
 }
 
 // newServer builds the MCP server around src.
 func newServer(src source) *mcp.Server {
-	return newServerAt(src, time.Now)
+	return newServerAt(src, time.Now, sleepFor)
 }
 
-// newServerAt is newServer with a replaceable clock, which is what decides
-// whether a snapshot counts as fresh.
-func newServerAt(src source, now func() time.Time) *mcp.Server {
-	h := &handlers{src: src, now: now}
+// sleepFor waits for d, or returns early with the context's error.
+func sleepFor(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// newServerAt is newServer with a replaceable clock, which decides whether a
+// snapshot counts as fresh, and a replaceable wait, which paces sampling.
+func newServerAt(src source, now func() time.Time, sleep func(context.Context, time.Duration) error) *mcp.Server {
+	h := &handlers{src: src, now: now, sleep: sleep}
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "hwinfo-mcp",
@@ -125,9 +140,15 @@ func newServerAt(src source, now func() time.Time) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_readings",
-		Description: "Return current sensor readings from HWiNFO, grouped by sensor. Narrow the result with the sensor, label and types filters: a PC has several hundred readings and one call returns at most 300 of them (truncated is set when more matched). Set stats to add the minimum, maximum and average HWiNFO has recorded since it started.",
+		Description: "Return current sensor readings from HWiNFO, grouped by sensor. Narrow the result with the sensor, label and types filters: a PC has several hundred readings and one call returns at most 300 of them. When more matched, truncated is set and next_offset is the offset to pass for the following ones. Set stats to add the minimum, maximum and average HWiNFO has recorded since it started.",
 		Annotations: readOnly("Get HWiNFO readings"),
 	}, h.getReadings)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "sample_readings",
+		Description: "Watch readings for a few seconds and summarise what they did: first and last value, lowest, highest and mean, the largest change between two samples, and when each of those happened. It takes one sample per HWiNFO poll (every 2 seconds unless the user changed it), so anything shorter than a poll is invisible. It does not find extremes that get_readings with stats would miss: HWiNFO's own minimum and maximum already cover every poll since it started. Use it to learn when something happened and to set readings against each other at the same moment, for example a voltage against the power drawn while a load starts. Takes the sensor, label and types filters of get_readings, watches at most 150 readings for at most 30 seconds, and blocks for that long.",
+		Annotations: readOnly("Sample HWiNFO readings over time"),
+	}, h.sampleReadings)
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "thermal_overview",
@@ -158,6 +179,15 @@ type readingsInput struct {
 	Label  string   `json:"label,omitempty" jsonschema:"case-insensitive part of a reading label, such as Temperature or Tctl; matches the original and the displayed label"`
 	Types  []string `json:"types,omitempty" jsonschema:"reading types to include, any of: temperature, voltage, fan, current, power, clock, usage, other"`
 	Stats  bool     `json:"stats,omitempty" jsonschema:"also return the minimum, maximum and average recorded since HWiNFO started"`
+	Offset int      `json:"offset,omitempty" jsonschema:"number of matching readings to skip; pass the next_offset of the previous call to read on"`
+}
+
+type sampleInput struct {
+	Sensor  string   `json:"sensor,omitempty" jsonschema:"case-insensitive part of a sensor name, such as CPU or RTX 5080; matches the original and the displayed name"`
+	Label   string   `json:"label,omitempty" jsonschema:"case-insensitive part of a reading label, such as +12V or Tctl; matches the original and the displayed label"`
+	Types   []string `json:"types,omitempty" jsonschema:"reading types to include, any of: temperature, voltage, fan, current, power, clock, usage, other"`
+	Seconds int      `json:"seconds,omitempty" jsonschema:"how long to watch, from 1 to 30 seconds; 10 if omitted"`
+	Values  bool     `json:"values,omitempty" jsonschema:"also return every sampled value with the time of each sample; only done when at most 16 readings match"`
 }
 
 type statusOutput struct {
@@ -210,7 +240,8 @@ type readingsOutput struct {
 	LastUpdate string           `json:"last_update,omitempty" jsonschema:"time of HWiNFO's last sensor poll, RFC 3339"`
 	Warning    string           `json:"warning,omitempty" jsonschema:"set when the data is stale"`
 	Matched    int              `json:"matched" jsonschema:"number of readings that match the filters"`
-	Truncated  bool             `json:"truncated,omitempty" jsonschema:"true when more readings matched than one call returns; narrow the filters to see the rest"`
+	Truncated  bool             `json:"truncated,omitempty" jsonschema:"true when readings remain after the ones returned; narrow the filters or continue at next_offset"`
+	NextOffset int              `json:"next_offset,omitempty" jsonschema:"offset to pass to get the readings that follow; given when truncated"`
 	Sensors    []sensorReadings `json:"sensors"`
 }
 
@@ -218,6 +249,52 @@ type readingsOutput struct {
 // readings, and with statistics that is more JSON than MCP clients accept in
 // a single tool result; the cap keeps the largest answer around 40 KB.
 const maxReadings = 300
+
+// Limits of sample_readings. A call blocks for the whole window, and clients
+// give up on a tool call after a time this server cannot know, so the window
+// stays well under a minute. The other limits bound the size of the answer.
+const (
+	defaultSampleSeconds = 10
+	maxSampleSeconds     = 30
+	maxSampled           = 150 // readings one call watches
+	maxSeries            = 16  // readings whose every sampled value is returned
+	maxSamples           = 120 // samples one call takes
+)
+
+type sampledReading struct {
+	Label   string     `json:"label" jsonschema:"HWiNFO's original English label"`
+	Display string     `json:"display,omitempty" jsonschema:"label shown in HWiNFO when it was translated or renamed"`
+	Type    string     `json:"type,omitempty" jsonschema:"temperature, voltage, fan, current, power, clock, usage or other"`
+	Unit    string     `json:"unit,omitempty"`
+	First   *float64   `json:"first" jsonschema:"value at the first sample; null, like the other values, if HWiNFO held no finite number during the window"`
+	Last    *float64   `json:"last" jsonschema:"value at the last sample"`
+	Min     *float64   `json:"min" jsonschema:"lowest sampled value"`
+	Max     *float64   `json:"max" jsonschema:"highest sampled value"`
+	Mean    *float64   `json:"mean" jsonschema:"mean of the sampled values"`
+	MinAt   *float64   `json:"min_at,omitempty" jsonschema:"seconds into the window at which the lowest value was first sampled"`
+	MaxAt   *float64   `json:"max_at,omitempty" jsonschema:"seconds into the window at which the highest value was first sampled"`
+	Step    *float64   `json:"largest_step,omitempty" jsonschema:"largest change between two consecutive samples, as an absolute value"`
+	StepAt  *float64   `json:"largest_step_at,omitempty" jsonschema:"seconds into the window of the sample that ended that change"`
+	Values  []*float64 `json:"values,omitempty" jsonschema:"every sampled value, in the order of sample_times"`
+}
+
+type sampledSensor struct {
+	Sensor   string           `json:"sensor" jsonschema:"HWiNFO's original English sensor name"`
+	Display  string           `json:"display,omitempty" jsonschema:"name shown in HWiNFO when it was translated or renamed"`
+	Readings []sampledReading `json:"readings"`
+}
+
+type sampleOutput struct {
+	Started         string          `json:"started" jsonschema:"when the window began, RFC 3339"`
+	Seconds         *float64        `json:"seconds" jsonschema:"how long the readings were watched"`
+	Samples         int             `json:"samples" jsonschema:"number of samples taken, one per HWiNFO poll"`
+	PollingPeriodMS int64           `json:"polling_period_ms,omitempty" jsonschema:"HWiNFO's sensor polling interval, which is the finest detail a sample can show"`
+	SampleTimes     []*float64      `json:"sample_times,omitempty" jsonschema:"seconds into the window of each sample; given together with values"`
+	Matched         int             `json:"matched" jsonschema:"number of readings that match the filters"`
+	Truncated       bool            `json:"truncated,omitempty" jsonschema:"true when more readings matched than one call watches; narrow the filters"`
+	Warning         string          `json:"warning,omitempty" jsonschema:"set when the window ended early or the values asked for were left out"`
+	Sensors         []sampledSensor `json:"sensors"`
+}
 
 // throttling carries HWiNFO's Yes/No thermal flags and nothing more. A CPU
 // can be held at its temperature limit with every flag clear, which is what
@@ -377,14 +454,27 @@ func (h *handlers) listSensors(_ context.Context, _ *mcp.CallToolRequest, _ noIn
 	return nil, out, nil
 }
 
-func (h *handlers) getReadings(_ context.Context, _ *mcp.CallToolRequest, in readingsInput) (*mcp.CallToolResult, readingsOutput, error) {
-	filter := hwinfo.Filter{Sensor: in.Sensor, Label: in.Label}
-	for _, name := range in.Types {
+// parseFilter turns the filter arguments shared by get_readings and
+// sample_readings into a filter, rejecting reading types that do not exist.
+func parseFilter(sensor, label string, types []string) (hwinfo.Filter, error) {
+	filter := hwinfo.Filter{Sensor: sensor, Label: label}
+	for _, name := range types {
 		t, ok := hwinfo.ParseReadingType(name)
 		if !ok {
-			return nil, readingsOutput{}, fmt.Errorf("unknown reading type %q; use any of: %s", name, strings.Join(hwinfo.TypeNames(), ", "))
+			return filter, fmt.Errorf("unknown reading type %q; use any of: %s", name, strings.Join(hwinfo.TypeNames(), ", "))
 		}
 		filter.Types = append(filter.Types, t)
+	}
+	return filter, nil
+}
+
+func (h *handlers) getReadings(_ context.Context, _ *mcp.CallToolRequest, in readingsInput) (*mcp.CallToolResult, readingsOutput, error) {
+	filter, err := parseFilter(in.Sensor, in.Label, in.Types)
+	if err != nil {
+		return nil, readingsOutput{}, err
+	}
+	if in.Offset < 0 {
+		return nil, readingsOutput{}, fmt.Errorf("offset %d is negative; pass 0 or the next_offset of a previous call", in.Offset)
 	}
 
 	snap, err := h.load()
@@ -394,12 +484,219 @@ func (h *handlers) getReadings(_ context.Context, _ *mcp.CallToolRequest, in rea
 	selected := snap.Select(filter)
 
 	out := readingsOutput{Active: snap.Active, Matched: len(selected)}
+	selected = selected[min(in.Offset, len(selected)):]
 	if len(selected) > maxReadings {
 		selected = selected[:maxReadings]
 		out.Truncated = true
+		out.NextOffset = in.Offset + maxReadings
 	}
 	out.Sensors = bySensor(snap, selected, true, in.Stats)
 	out.LastUpdate, _, out.Warning = h.freshness(snap)
+	return nil, out, nil
+}
+
+// A track follows one reading through a sampling window. The reading is
+// identified by where it sits and by what it is called: HWiNFO adds and
+// removes sensors while it runs (the one for the application PresentMon is
+// watching, for instance), which moves every reading after them.
+type track struct {
+	index  int // position in Snapshot.Readings
+	sensor string
+	label  string
+	typ    hwinfo.ReadingType
+
+	n           int
+	first, last float64
+	min, max    float64
+	sum         float64
+	minAt       float64
+	maxAt       float64
+	step        float64
+	stepAt      float64
+	values      []*float64 // only kept when every value was asked for
+}
+
+func (t *track) add(v, at float64, keep bool) {
+	if keep {
+		t.values = append(t.values, num(v))
+	}
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return
+	}
+	if t.n == 0 {
+		t.first, t.min, t.max, t.minAt, t.maxAt = v, v, v, at, at
+	} else {
+		if v < t.min {
+			t.min, t.minAt = v, at
+		}
+		if v > t.max {
+			t.max, t.maxAt = v, at
+		}
+		if d := math.Abs(v - t.last); d > t.step {
+			t.step, t.stepAt = d, at
+		}
+	}
+	t.last = v
+	t.sum += v
+	t.n++
+}
+
+// follows reports whether snap still has every tracked reading where it was.
+func follows(snap *hwinfo.Snapshot, tracks []*track) bool {
+	for _, t := range tracks {
+		if t.index >= len(snap.Readings) {
+			return false
+		}
+		r := snap.Readings[t.index]
+		name := ""
+		if s := snap.Sensor(r.SensorIndex); s != nil {
+			name = s.OriginalName
+		}
+		if r.OriginalLabel != t.label || r.Type != t.typ || name != t.sensor {
+			return false
+		}
+	}
+	return true
+}
+
+func (h *handlers) sampleReadings(ctx context.Context, _ *mcp.CallToolRequest, in sampleInput) (*mcp.CallToolResult, sampleOutput, error) {
+	filter, err := parseFilter(in.Sensor, in.Label, in.Types)
+	if err != nil {
+		return nil, sampleOutput{}, err
+	}
+	seconds := in.Seconds
+	if seconds == 0 {
+		seconds = defaultSampleSeconds
+	}
+	if seconds < 1 || seconds > maxSampleSeconds {
+		return nil, sampleOutput{}, fmt.Errorf("seconds is %d; a window lasts from 1 to %d seconds", in.Seconds, maxSampleSeconds)
+	}
+	window := time.Duration(seconds) * time.Second
+
+	snap, err := h.load()
+	if err != nil {
+		return nil, sampleOutput{}, err
+	}
+	if !snap.Active {
+		return nil, sampleOutput{}, fmt.Errorf("HWiNFO is not updating its sensors, so there is nothing to sample. %s", hint(hwinfo.ErrInactive))
+	}
+
+	selected := snap.Select(filter)
+	out := sampleOutput{Matched: len(selected), PollingPeriodMS: snap.PollingPeriod.Milliseconds()}
+	if len(selected) > maxSampled {
+		selected = selected[:maxSampled]
+		out.Truncated = true
+	}
+	keep := in.Values && len(selected) <= maxSeries
+	if in.Values && !keep {
+		out.Warning = fmt.Sprintf("Every sampled value is only returned for up to %d readings, and %d are being watched; narrow the filters to get them.", maxSeries, len(selected))
+	}
+
+	tracks := make([]*track, len(selected))
+	for i, r := range selected {
+		tracks[i] = &track{index: r.Index, label: r.OriginalLabel, typ: r.Type}
+		if s := snap.Sensor(r.SensorIndex); s != nil {
+			tracks[i].sensor = s.OriginalName
+		}
+	}
+
+	start := h.now()
+	out.Started = start.Local().Format(time.RFC3339)
+	record := func(s *hwinfo.Snapshot, at float64) {
+		for _, t := range tracks {
+			t.add(s.Readings[t.index].Value, at, keep)
+		}
+		if keep {
+			out.SampleTimes = append(out.SampleTimes, num(at))
+		}
+		out.Samples++
+	}
+	record(snap, 0)
+
+	// One sample per poll. The poll time has one-second resolution, so with a
+	// faster polling period it cannot tell two polls apart, and the period
+	// itself paces the samples.
+	period := snap.PollingPeriod
+	if period <= 0 {
+		period = time.Second
+	}
+	tick := min(max(period/4, 100*time.Millisecond), 500*time.Millisecond)
+	lastPoll, lastAt := snap.PollTime, start
+	elapsed := time.Duration(0)
+	note := func(format string, args ...any) {
+		text := fmt.Sprintf(format, args...)
+		if out.Warning != "" {
+			text = out.Warning + " " + text
+		}
+		out.Warning = text
+	}
+	for elapsed < window {
+		if err := h.sleep(ctx, tick); err != nil {
+			return nil, sampleOutput{}, err
+		}
+		now := h.now()
+		if elapsed = now.Sub(start); elapsed >= window {
+			break
+		}
+		cur, err := h.src()
+		if cur == nil || err != nil {
+			if err == nil {
+				err = errors.New("no sensor data")
+			}
+			note("Sampling stopped after %s: %v. %s", elapsed.Round(time.Second), err, hint(err))
+			break
+		}
+		if cur.PollTime.Equal(lastPoll) && (period >= time.Second || now.Sub(lastAt) < period) {
+			continue // still the poll already sampled
+		}
+		if !follows(cur, tracks) {
+			note("Sampling stopped after %s because HWiNFO's list of sensors changed, which happens when a sensor appears or goes away; call again to watch the new list.", elapsed.Round(time.Second))
+			break
+		}
+		record(cur, elapsed.Seconds())
+		lastPoll, lastAt = cur.PollTime, now
+		if out.Samples >= maxSamples {
+			note("Sampling stopped after %s, at the limit of %d samples.", elapsed.Round(time.Second), maxSamples)
+			break
+		}
+	}
+	out.Seconds = num(min(elapsed, window).Seconds())
+
+	out.Sensors = []sampledSensor{}
+	position := map[int]int{} // sensor index -> position in out.Sensors
+	for i, t := range tracks {
+		r := selected[i]
+		at, ok := position[r.SensorIndex]
+		if !ok {
+			at = len(out.Sensors)
+			position[r.SensorIndex] = at
+			g := sampledSensor{Sensor: "(no sensor)"}
+			if s := snap.Sensor(r.SensorIndex); s != nil {
+				g.Sensor, g.Display = s.OriginalName, displayName(s.Name, s.OriginalName)
+			}
+			out.Sensors = append(out.Sensors, g)
+		}
+		sr := sampledReading{
+			Label:   r.OriginalLabel,
+			Display: displayName(r.Label, r.OriginalLabel),
+			Type:    r.Type.String(),
+			Unit:    r.Unit,
+			Values:  t.values,
+		}
+		if t.n > 0 {
+			sr.First, sr.Last = num(t.first), num(t.last)
+			sr.Min, sr.Max = num(t.min), num(t.max)
+			sr.Mean = num(t.sum / float64(t.n))
+			sr.MinAt, sr.MaxAt = num(t.minAt), num(t.maxAt)
+			if t.n > 1 {
+				sr.Step = num(t.step)
+				if t.step > 0 {
+					sr.StepAt = num(t.stepAt)
+				}
+			}
+		}
+		out.Sensors[at].Readings = append(out.Sensors[at].Readings, sr)
+	}
 	return nil, out, nil
 }
 

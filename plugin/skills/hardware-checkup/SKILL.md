@@ -23,7 +23,7 @@ The tools come from the hwinfo MCP server: `hwinfo_status`, `list_sensors`, `get
 - Every reading has `min`, `max` and `avg` kept since HWiNFO started or since they were last reset; request them with `"stats": true`. Ask how long HWiNFO has been running: a clean record over ten minutes proves much less than one over a day of use.
 - Flags that HWiNFO shows as Yes/No arrive as `1` or `0` with the unit `Yes/No`. `value` is the state now; a `max` of `1` means the flag was set at some point.
 - Counters only say something through their change. A total that is not zero may be old; one that grows between two readings is active.
-- One `get_readings` call returns at most 300 readings and sets `truncated` when more matched. Filter by sensor, label or type instead of asking for everything.
+- One `get_readings` call returns at most 300 readings and sets `truncated` when more matched. Filter by sensor, label or type instead of asking for everything; when you do need the rest, pass the `next_offset` it returns as `offset`.
 
 ## 3. What to check
 
@@ -33,7 +33,7 @@ Work through the list, skipping what the PC does not report.
 
 **Drives.** `get_readings` with `{"sensor": "S.M.A.R.T."}`. Look at `Drive Failure` and `Drive Warning` (either set is serious), `Drive Remaining Life`, `Drive Available Spare` and the drive temperatures. A drive can report more than one temperature; they are different points of the same drive.
 
-**Voltages.** `get_readings` with `{"types": ["voltage"], "stats": true}`, narrowed to the mainboard sensor. For the `+12V`, `+5V` and `+3.3V` rails the ATX tolerance is 5 % either way: 11.40 to 12.60 V, 4.75 to 5.25 V and 3.135 to 3.465 V. Pay most attention to the minimum, which shows the sag under load. Mainboard voltage sensors are coarse, so a value just outside the range is a reason to measure properly, not proof of a failing power supply.
+**Voltages.** `get_readings` with `{"types": ["voltage"], "stats": true}`, narrowed to the mainboard sensor. For the `+12V`, `+5V` and `+3.3V` rails the ATX tolerance is 5 % either way: 11.40 to 12.60 V, 4.75 to 5.25 V and 3.135 to 3.465 V. Pay most attention to the minimum, which shows the sag under load. Mainboard voltage sensors are coarse, so a value just outside the range is a reason to measure properly, not proof of a failing power supply. For a closer look, including how the rails behave while the load changes, use the `voltage-check` skill.
 
 **Fans.** `get_readings` with `{"types": ["fan"], "stats": true}`. A graphics card whose fans stop at low temperature is normal. A case fan, CPU fan or pump that reads 0 RPM, or whose minimum dropped to 0, is not. Fans that hold one speed whatever the temperature point to a fixed fan curve.
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -85,8 +87,14 @@ func failing(err error) source {
 // connect runs the server around src and returns a client connected to it.
 func connect(t *testing.T, src source) *mcp.ClientSession {
 	t.Helper()
+	return connectAt(t, src, clock, sleepFor)
+}
+
+// connectAt is connect with a clock and a wait of the test's choosing.
+func connectAt(t *testing.T, src source, now func() time.Time, sleep func(context.Context, time.Duration) error) *mcp.ClientSession {
+	t.Helper()
 	serverSide, clientSide := mcp.NewInMemoryTransports()
-	ss, err := newServerAt(src, clock).Connect(t.Context(), serverSide, nil)
+	ss, err := newServerAt(src, now, sleep).Connect(t.Context(), serverSide, nil)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -169,13 +177,19 @@ func TestToolList(t *testing.T) {
 		}
 	}
 	sort.Strings(names)
-	if want := []string{"get_readings", "hwinfo_status", "list_sensors", "thermal_overview"}; !reflect.DeepEqual(names, want) {
+	if want := []string{"get_readings", "hwinfo_status", "list_sensors", "sample_readings", "thermal_overview"}; !reflect.DeepEqual(names, want) {
 		t.Fatalf("tools = %q, want %q", names, want)
 	}
 
-	// get_readings takes exactly the four documented filters, all optional.
+	// The two tools with arguments take exactly the documented ones, and
+	// every one of them is optional.
+	documented := map[string][]string{
+		"get_readings":    {"label", "offset", "sensor", "stats", "types"},
+		"sample_readings": {"label", "seconds", "sensor", "types", "values"},
+	}
 	for _, tool := range res.Tools {
-		if tool.Name != "get_readings" {
+		want, ok := documented[tool.Name]
+		if !ok {
 			continue
 		}
 		raw, _ := json.Marshal(tool.InputSchema)
@@ -191,11 +205,11 @@ func TestToolList(t *testing.T) {
 			props = append(props, name)
 		}
 		sort.Strings(props)
-		if want := []string{"label", "sensor", "stats", "types"}; !reflect.DeepEqual(props, want) {
-			t.Errorf("get_readings parameters = %q, want %q", props, want)
+		if !reflect.DeepEqual(props, want) {
+			t.Errorf("%s parameters = %q, want %q", tool.Name, props, want)
 		}
 		if len(schema.Required) != 0 {
-			t.Errorf("get_readings requires %q; every filter must be optional", schema.Required)
+			t.Errorf("%s requires %q; every argument must be optional", tool.Name, schema.Required)
 		}
 	}
 
@@ -477,6 +491,349 @@ func TestGetReadingsIsBounded(t *testing.T) {
 	fan, raw := output[readingsOutput](t, cs, "get_readings", map[string]any{"types": []string{"fan"}})
 	if fan.Matched != 1 || fan.Truncated || count(fan) != 1 || strings.Contains(raw, "truncated") {
 		t.Errorf("filtered: %s", raw)
+	}
+
+	// So does reading on from where the first answer stopped: everything
+	// HWiNFO publishes can be had without a filter.
+	if all.NextOffset != maxReadings {
+		t.Fatalf("next_offset = %d, want %d", all.NextOffset, maxReadings)
+	}
+	rest, raw := output[readingsOutput](t, cs, "get_readings", map[string]any{"offset": all.NextOffset})
+	if rest.Matched != maxReadings+26 || rest.Truncated || rest.NextOffset != 0 || count(rest) != 26 || strings.Contains(raw, "next_offset") {
+		t.Errorf("second page: matched %d, truncated %v, next_offset %d, returned %d", rest.Matched, rest.Truncated, rest.NextOffset, count(rest))
+	}
+	if len(rest.Sensors) != 2 || rest.Sensors[0].Readings[0].Label != fmt.Sprintf("Core %d Usage", maxReadings) || rest.Sensors[1].Readings[0].Label != "Fan" {
+		t.Errorf("the second page does not continue where the first stopped: %s", raw)
+	}
+
+	// Past the end there is nothing left, which is not an error.
+	if beyond, raw := output[readingsOutput](t, cs, "get_readings", map[string]any{"offset": 100000}); beyond.Matched != maxReadings+26 || count(beyond) != 0 || !strings.Contains(raw, `"sensors":[]`) {
+		t.Errorf("past the end: %s", raw)
+	}
+	if res := call(t, cs, "get_readings", map[string]any{"offset": -1}); !res.IsError || !strings.Contains(text(t, res), "negative") {
+		t.Errorf("a negative offset: isError = %v, %s", res.IsError, text(t, res))
+	}
+}
+
+// ticking is a clock that only moves when the code under test waits, and a
+// source of the snapshot HWiNFO would publish at that moment: poll k happens
+// k periods after the start.
+type ticking struct {
+	t      *testing.T
+	start  time.Time
+	now    time.Time
+	period time.Duration
+	image  func(poll int) hwinfotest.Image
+}
+
+func newTicking(t *testing.T, period time.Duration, image func(poll int) hwinfotest.Image) *ticking {
+	return &ticking{t: t, start: pollTime, now: pollTime, period: period, image: image}
+}
+
+func (c *ticking) clock() time.Time { return c.now }
+
+func (c *ticking) sleep(ctx context.Context, d time.Duration) error {
+	c.now = c.now.Add(d)
+	return ctx.Err()
+}
+
+func (c *ticking) source() (*hwinfo.Snapshot, error) {
+	poll := int(c.now.Sub(c.start) / c.period)
+	im := c.image(poll)
+	im.PollTime = c.start.Add(time.Duration(poll) * c.period).Unix()
+	im.PollingPeriod = uint32(c.period / time.Millisecond)
+	snap, err := hwinfo.Parse(im.Bytes())
+	if snap == nil {
+		c.t.Fatalf("Parse: %v", err)
+	}
+	snap.Locked = true
+	return snap, err
+}
+
+// rails is a mainboard whose 12 V rail and CPU power take the given values
+// poll after poll, and stay at the last one.
+func rails(volts, watts []float64) func(int) hwinfotest.Image {
+	at := func(values []float64, poll int) float64 { return values[min(poll, len(values)-1)] }
+	return func(poll int) hwinfotest.Image {
+		return hwinfotest.Image{
+			Sensors: []hwinfotest.Sensor{
+				{Name: "GIGABYTE X870E AORUS ELITE WIFI7 (ITE IT8696E)"},
+				{Name: "CPU [#0]: AMD Ryzen 9 9950X3D: Enhanced"},
+			},
+			Readings: []hwinfotest.Reading{
+				{Type: hwinfotest.Voltage, Sensor: 0, Label: "+12V", Unit: "V", Value: at(volts, poll), Min: 11.712, Max: 12.288, Avg: 12.05},
+				{Type: hwinfotest.Fan, Sensor: 0, Label: "System 2", UserLabel: "Sistema 2", Unit: "RPM", Value: 1310},
+				{Type: hwinfotest.Power, Sensor: 1, Label: "CPU Package Power", UserLabel: "Potência total da CPU", Unit: "W", Value: at(watts, poll)},
+			},
+		}
+	}
+}
+
+func fs(values ...float64) []*float64 {
+	out := make([]*float64, len(values))
+	for i := range values {
+		out[i] = &values[i]
+	}
+	return out
+}
+
+// One sample per poll, with the moment each extreme was seen: that moment is
+// what the tool adds to the minimum and maximum HWiNFO keeps anyway.
+func TestSampleReadings(t *testing.T) {
+	c := newTicking(t, 2*time.Second, rails(
+		[]float64{12.096, 12.192, 11.808, 12, 12.096},
+		[]float64{80, 150, 230, 120, 90},
+	))
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"types": []string{"voltage", "power"}, "seconds": 10, "values": true})
+
+	want := sampleOutput{
+		Started:         pollTime.Local().Format(time.RFC3339),
+		Seconds:         f(10),
+		Samples:         5,
+		PollingPeriodMS: 2000,
+		SampleTimes:     fs(0, 2, 4, 6, 8),
+		Matched:         2,
+		Sensors: []sampledSensor{
+			{Sensor: "GIGABYTE X870E AORUS ELITE WIFI7 (ITE IT8696E)", Readings: []sampledReading{{
+				Label: "+12V", Type: "voltage", Unit: "V",
+				First: f(12.096), Last: f(12.096), Min: f(11.808), Max: f(12.192), Mean: f(12.038),
+				MinAt: f(4), MaxAt: f(2), Step: f(0.384), StepAt: f(4),
+				Values: fs(12.096, 12.192, 11.808, 12, 12.096),
+			}}},
+			{Sensor: "CPU [#0]: AMD Ryzen 9 9950X3D: Enhanced", Readings: []sampledReading{{
+				Label: "CPU Package Power", Display: "Potência total da CPU", Type: "power", Unit: "W",
+				First: f(80), Last: f(90), Min: f(80), Max: f(230), Mean: f(134),
+				MinAt: f(0), MaxAt: f(4), Step: f(110), StepAt: f(6),
+				Values: fs(80, 150, 230, 120, 90),
+			}}},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		g, _ := json.MarshalIndent(got, "", "  ")
+		w, _ := json.MarshalIndent(want, "", "  ")
+		t.Errorf("sample_readings:\n got %s\nwant %s", g, w)
+	}
+	if strings.Contains(raw, "warning") || strings.Contains(raw, "truncated") {
+		t.Errorf("a complete window carries a warning: %s", raw)
+	}
+}
+
+// Without values the answer holds the summary only, and the window defaults
+// to ten seconds.
+func TestSampleReadingsDefaults(t *testing.T) {
+	c := newTicking(t, 2*time.Second, rails([]float64{12, 12.1}, []float64{100}))
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"label": "+12V"})
+
+	if *got.Seconds != defaultSampleSeconds || got.Samples != 5 || got.Matched != 1 {
+		t.Errorf("seconds %v, samples %d, matched %d; want %d, 5, 1", *got.Seconds, got.Samples, got.Matched, defaultSampleSeconds)
+	}
+	if strings.Contains(raw, `"values"`) || strings.Contains(raw, "sample_times") {
+		t.Errorf("values were returned without being asked for: %s", raw)
+	}
+	r := got.Sensors[0].Readings[0]
+	if *r.Min != 12 || *r.Max != 12.1 || *r.MinAt != 0 || *r.MaxAt != 2 || *r.Step != 0.1 {
+		t.Errorf("summary = %s", raw)
+	}
+
+	// A reading that never moves has no step to locate.
+	steady, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"types": []string{"fan"}, "seconds": 4})
+	if r := steady.Sensors[0].Readings[0]; *r.Step != 0 || r.StepAt != nil || r.Display != "Sistema 2" {
+		t.Errorf("steady reading: %s", raw)
+	}
+}
+
+func TestSampleReadingsRejectsBadArguments(t *testing.T) {
+	c := newTicking(t, 2*time.Second, rails([]float64{12}, []float64{100}))
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	for name, args := range map[string]map[string]any{
+		"too long":     {"seconds": maxSampleSeconds + 1},
+		"negative":     {"seconds": -5},
+		"unknown type": {"types": []string{"pressure"}},
+	} {
+		if res := call(t, cs, "sample_readings", args); !res.IsError {
+			t.Errorf("%s: accepted %v", name, args)
+		}
+	}
+	if c.now != c.start {
+		t.Error("a rejected call waited before failing")
+	}
+}
+
+// HWiNFO can stop publishing while it is being watched. What was sampled up
+// to then is returned, with the same advice as any stale data.
+func TestSampleReadingsWhenHWiNFOStops(t *testing.T) {
+	healthy := rails([]float64{12.096, 11.904}, []float64{80, 200})
+	c := newTicking(t, 2*time.Second, func(poll int) hwinfotest.Image {
+		im := healthy(poll)
+		im.Dead = poll >= 2
+		return im
+	})
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"types": []string{"voltage"}, "seconds": 20})
+
+	if got.Samples != 2 || *got.Seconds != 4 {
+		t.Errorf("samples %d over %v s, want the 2 taken in the 4 s before HWiNFO stopped", got.Samples, *got.Seconds)
+	}
+	if !strings.Contains(got.Warning, "stopped after 4s") || !strings.Contains(got.Warning, leftToUser) {
+		t.Errorf("warning = %q", got.Warning)
+	}
+	if r := got.Sensors[0].Readings[0]; *r.First != 12.096 || *r.Last != 11.904 {
+		t.Errorf("the samples taken before the stop are missing: %s", raw)
+	}
+
+	// Stopped from the start, there is nothing to watch at all.
+	dead := newTicking(t, 2*time.Second, func(poll int) hwinfotest.Image {
+		im := healthy(poll)
+		im.Dead = true
+		return im
+	})
+	res := call(t, connectAt(t, dead.source, dead.clock, dead.sleep), "sample_readings", nil)
+	if !res.IsError || !strings.Contains(text(t, res), "nothing to sample") || !strings.Contains(text(t, res), leftToUser) {
+		t.Errorf("inactive from the start: isError = %v, %s", res.IsError, text(t, res))
+	}
+}
+
+// HWiNFO adds and removes sensors while it runs, which moves the readings
+// that follow. The window ends there rather than mixing two readings up.
+func TestSampleReadingsWhenTheSensorListChanges(t *testing.T) {
+	steady := rails([]float64{12.096, 12.192, 12.288}, []float64{80})
+	c := newTicking(t, 2*time.Second, func(poll int) hwinfotest.Image {
+		im := steady(poll)
+		if poll >= 2 {
+			// A sensor appears in front of the others, as PresentMon's does
+			// when a game starts.
+			im.Sensors = append([]hwinfotest.Sensor{{Name: "PresentMon [game.exe]"}}, im.Sensors...)
+			for i := range im.Readings {
+				im.Readings[i].Sensor++
+			}
+			im.Readings = append([]hwinfotest.Reading{{Type: hwinfotest.Voltage, Sensor: 0, Label: "Not a voltage rail", Unit: "V", Value: 99}}, im.Readings...)
+		}
+		return im
+	})
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"label": "+12V", "seconds": 20})
+
+	if got.Samples != 2 || !strings.Contains(got.Warning, "list of sensors changed") {
+		t.Errorf("samples %d, warning %q", got.Samples, got.Warning)
+	}
+	if r := got.Sensors[0].Readings[0]; *r.Max != 12.192 {
+		t.Errorf("a reading from the new layout was mixed in: %s", raw)
+	}
+}
+
+// The answer stays bounded however much matches, and every sampled value is
+// only spelled out for a handful of readings.
+func TestSampleReadingsIsBounded(t *testing.T) {
+	c := newTicking(t, 2*time.Second, func(int) hwinfotest.Image {
+		im := hwinfotest.Image{Sensors: []hwinfotest.Sensor{{Name: "Big sensor"}}}
+		for i := range maxSampled + 5 {
+			im.Readings = append(im.Readings, hwinfotest.Reading{Type: hwinfotest.Usage, Sensor: 0, Label: fmt.Sprintf("Core %d Usage", i), Unit: "%", Value: float64(i)})
+		}
+		return im
+	})
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"seconds": 2, "values": true})
+
+	if got.Matched != maxSampled+5 || !got.Truncated || len(got.Sensors[0].Readings) != maxSampled {
+		t.Errorf("matched %d, truncated %v, watched %d", got.Matched, got.Truncated, len(got.Sensors[0].Readings))
+	}
+	if strings.Contains(raw, `"values"`) || !strings.Contains(got.Warning, "narrow the filters") {
+		t.Errorf("values for %d readings were returned, or their absence is unexplained: %q", maxSampled, got.Warning)
+	}
+}
+
+// With a polling period under a second the poll time cannot tell two polls
+// apart, so the period paces the samples.
+func TestSampleReadingsWithFastPolling(t *testing.T) {
+	c := newTicking(t, 250*time.Millisecond, rails([]float64{12, 12.1, 12.2, 12.3, 12.4}, []float64{100}))
+	cs := connectAt(t, c.source, c.clock, c.sleep)
+	got, raw := output[sampleOutput](t, cs, "sample_readings", map[string]any{"label": "+12V", "seconds": 1, "values": true})
+
+	if got.Samples != 4 || !reflect.DeepEqual(got.SampleTimes, fs(0, 0.3, 0.6, 0.9)) {
+		t.Errorf("samples at %s, want four of them about a polling period apart", raw)
+	}
+}
+
+// A window that is cancelled ends at once instead of running to its end.
+func TestSampleReadingsHonoursCancellation(t *testing.T) {
+	c := newTicking(t, 2*time.Second, rails([]float64{12}, []float64{100}))
+	h := &handlers{src: c.source, now: c.clock, sleep: sleepFor}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	begun := time.Now()
+	_, _, err := h.sampleReadings(ctx, nil, sampleInput{Seconds: maxSampleSeconds})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %v, want the cancellation", err)
+	}
+	if waited := time.Since(begun); waited > 5*time.Second {
+		t.Errorf("a cancelled window still took %v", waited)
+	}
+}
+
+// Watching must not hold up the rest: the other tools answer while a window
+// is open.
+func TestOtherToolsAnswerWhileSampling(t *testing.T) {
+	c := newTicking(t, 2*time.Second, rails([]float64{12}, []float64{100}))
+
+	// Two calls now read the clock at once, so it is guarded; the window's
+	// first wait blocks until the test lets it go.
+	var mu sync.Mutex
+	clock := func() time.Time { mu.Lock(); defer mu.Unlock(); return c.now }
+	src := func() (*hwinfo.Snapshot, error) { mu.Lock(); defer mu.Unlock(); return c.source() }
+	waiting, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	sleep := func(ctx context.Context, d time.Duration) error {
+		once.Do(func() { close(waiting) })
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		c.now = c.now.Add(d)
+		return nil
+	}
+	cs := connectAt(t, src, clock, sleep)
+
+	sampled := make(chan *mcp.CallToolResult, 1)
+	go func() {
+		res, err := cs.CallTool(t.Context(), &mcp.CallToolParams{Name: "sample_readings", Arguments: map[string]any{"seconds": 2}})
+		if err != nil {
+			t.Errorf("sample_readings: %v", err)
+		}
+		sampled <- res
+	}()
+
+	select {
+	case <-waiting:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the sampling window never started waiting")
+	}
+	answered := make(chan struct{})
+	go func() {
+		defer close(answered)
+		if res := call(t, cs, "hwinfo_status", nil); res.IsError {
+			t.Errorf("hwinfo_status failed during a window: %s", text(t, res))
+		}
+	}()
+	select {
+	case <-answered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("hwinfo_status did not answer while a sampling window was open")
+	}
+
+	close(release)
+	select {
+	case res := <-sampled:
+		if res == nil || res.IsError {
+			t.Errorf("the window did not complete: %+v", res)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the sampling window did not end after it was released")
 	}
 }
 

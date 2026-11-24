@@ -40,6 +40,10 @@
       "description": "Return current readings grouped by sensor, filtered by sensor, label and type, optionally with minimum, maximum and average."
     },
     {
+      "name": "sample_readings",
+      "description": "Watch readings for up to 30 seconds and report their lowest, highest and mean values and when each extreme happened."
+    },
+    {
       "name": "thermal_overview",
       "description": "Summarise CPU and GPU temperatures, power draw, throttling flags, fans and the remaining temperatures."
     }

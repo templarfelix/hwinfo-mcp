@@ -3,7 +3,7 @@ name: thermal-check
 description: Judge from HWiNFO sensor readings whether a Windows PC's CPU or graphics card runs too hot, is being held back by temperature, or needs new thermal paste or thermal pads. Use when the user asks about temperatures, overheating, throttling, hot spots, thermal paste, thermal pads, fan curves or whether cleaning the cooler would help.
 license: MIT
 compatibility: Needs the hwinfo MCP server, which runs on Windows with HWiNFO64 and its Shared Memory Support enabled.
-allowed-tools: mcp__plugin_hwinfo_hwinfo__hwinfo_status mcp__plugin_hwinfo_hwinfo__thermal_overview mcp__plugin_hwinfo_hwinfo__get_readings mcp__plugin_hwinfo_hwinfo__list_sensors mcp__hwinfo__hwinfo_status mcp__hwinfo__thermal_overview mcp__hwinfo__get_readings mcp__hwinfo__list_sensors
+allowed-tools: mcp__plugin_hwinfo_hwinfo__hwinfo_status mcp__plugin_hwinfo_hwinfo__thermal_overview mcp__plugin_hwinfo_hwinfo__get_readings mcp__plugin_hwinfo_hwinfo__sample_readings mcp__plugin_hwinfo_hwinfo__list_sensors mcp__hwinfo__hwinfo_status mcp__hwinfo__thermal_overview mcp__hwinfo__get_readings mcp__hwinfo__sample_readings mcp__hwinfo__list_sensors
 ---
 
 # Thermal check
@@ -30,6 +30,7 @@ A verdict needs the hardware working hard. Idle readings only show that nothing 
 
 - If the PC is idle, ask the user to start the game, render or stress test that worries them, and read again several times while it runs, a minute or so apart. Use the heaviest moments.
 - A reading taken in one call is a snapshot. You cannot watch the PC between calls, so say how many snapshots the verdict rests on. If one snapshot is all there is, call the verdict provisional.
+- `sample_readings` watches for up to 30 seconds in one call, one sample per HWiNFO poll, and says when each reading peaked. Use it with `"values": true` on a temperature and the matching power reading, for example `{"sensor": "GPU", "types": ["temperature", "power"], "seconds": 30, "values": true}`, to get pairs from the same moments and to see whether a temperature has settled or is still climbing. It finds no peak that `max` would miss; it tells you when. If the server has no such tool, repeat `thermal_overview` instead.
 - The picture changes with the load. A graphics card that looks comfortable at 250 W can show a clearly larger hot-spot gap at 300 W. Do not carry a conclusion from a lighter load over to a heavier one.
 
 ## 4. Rules for reading the numbers

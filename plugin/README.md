@@ -5,13 +5,15 @@ on a Windows PC, and gives it a method for judging what they say.
 
 The plugin bundles:
 
-- the **hwinfo MCP server**, a read-only Windows executable with four tools:
-  `hwinfo_status`, `list_sensors`, `get_readings` and `thermal_overview`;
-- three skills:
+- the **hwinfo MCP server**, a read-only Windows executable with five tools:
+  `hwinfo_status`, `list_sensors`, `get_readings`, `sample_readings` and
+  `thermal_overview`;
+- four skills:
 
   | Skill | Use it for |
   |---|---|
   | `/hwinfo:thermal-check` | Is the CPU or graphics card running too hot, being held back by temperature, or in need of new thermal paste or pads? |
+  | `/hwinfo:voltage-check` | Are the power supply rails and the graphics card's power inputs in range, and how do they behave when the load changes? |
   | `/hwinfo:hardware-checkup` | A broad check of error counters, drive health, voltages, fans, memory and limits. |
   | `/hwinfo:setup` | Getting HWiNFO to publish its readings, or finding out why they stopped. |
 

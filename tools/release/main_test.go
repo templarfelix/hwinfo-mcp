@@ -201,3 +201,20 @@ func TestBundleIcon(t *testing.T) {
 		t.Errorf("mcpb/%s is %dx%d, want a square of at least 512 pixels", bundleIcon, cfg.Width, cfg.Height)
 	}
 }
+
+// The plugin carries the same icon as the bundle, where a plugin directory
+// looks for one. Two copies of a picture drift apart unless something holds
+// them together.
+func TestPluginIconIsTheBundlesIcon(t *testing.T) {
+	bundle, err := os.ReadFile(filepath.FromSlash("../../mcpb/" + bundleIcon))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plugin, err := os.ReadFile(filepath.FromSlash("../../plugin/.claude-plugin/icon.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(bundle, plugin) {
+		t.Error("plugin/.claude-plugin/icon.png differs from mcpb/icon.png; copy one over the other")
+	}
+}
