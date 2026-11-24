@@ -21,8 +21,8 @@
       "category": "hardware",
       "source": {
         "source": "archive",
-        "url": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.2.2/hwinfo-plugin.zip",
-        "sha256": "ad931d6fec8b5ab1c91e61b8f2d510eb618c2aae3563c44de8884410e9839b30"
+        "url": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.0.1/hwinfo-plugin.zip",
+        "sha256": "dfe42cd845794938ce36a3e669f5196d4adad207250c11ae829542eab52e0c70"
       }
     }
   ]
