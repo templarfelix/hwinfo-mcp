@@ -94,7 +94,7 @@ claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-The plugin brings the server together with three
+The plugin brings the server together with four
 [skills](#skills-that-come-with-the-plugin) that give the assistant a method
 for reading the sensors, so there is no executable to download. Inside a
 session (version 2.1.275 or later),
@@ -128,12 +128,13 @@ assistant picks the tool and the filters. A few to start with:
 
 ### Skills that come with the plugin
 
-The plugin adds three skills. The assistant uses them on its own when a
+The plugin adds four skills. The assistant uses them on its own when a
 question calls for one, and you can also start one by name:
 
 | Skill | What it does |
 |---|---|
 | `/hwinfo:thermal-check` | Judges whether the CPU or graphics card runs too hot, is held back by temperature, or needs new thermal paste or pads. It works from temperature and power read at the same moment, under load, and says what the sensors cannot show. |
+| `/hwinfo:voltage-check` | Judges whether the power supply rails and the graphics card's power inputs are in range, and how they behave when the load changes. It says first what a mainboard's voltage sensors cannot show. |
 | `/hwinfo:hardware-checkup` | Goes through hardware error counters, drive health, voltages, fans, memory and limits, and reports what needs attention, what is fine and what could not be checked. |
 | `/hwinfo:setup` | Gets HWiNFO publishing its readings, or explains why they stopped. |
 
@@ -324,17 +325,21 @@ register that path as described above.
 | `hwinfo_status` | Whether HWiNFO is publishing, when it last polled, how many sensors and readings there are, and whether the snapshot was taken under HWiNFO's lock. When something is wrong it says what and how to fix it. |
 | `list_sensors` | Every sensor with the number of readings of each type. |
 | `get_readings` | Current readings grouped by sensor, narrowed by the filters below. |
+| `sample_readings` | What the chosen readings did over a few seconds: first and last value, lowest, highest and mean, the largest change between two samples, and when each extreme happened. |
 | `thermal_overview` | The readings that say how hot the PC runs: per CPU the control temperature (Tctl/Tdie or package), die average, per-CCD temperatures, hottest core, package power, how much of its temperature limit it uses and the throttling flags; per GPU the core, hot spot and memory junction temperatures, power draw, fans and thermal limit flag; plus the remaining temperatures and fan speeds. |
 
-All four are annotated as read-only, and only `get_readings` takes arguments,
-all of them optional:
+All five are annotated as read-only. `get_readings` and `sample_readings` take
+arguments, all of them optional:
 
-| Argument | Meaning |
-|---|---|
-| `sensor` | Part of a sensor name, in any letter case: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
-| `label` | Part of a reading label, in any letter case: `Temperature`, `Tctl`, `Limit` |
-| `types` | Reading types to include, any of `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
-| `stats` | `true` to add the minimum, maximum and average |
+| Argument | Tool | Meaning |
+|---|---|---|
+| `sensor` | both | Part of a sensor name, in any letter case: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
+| `label` | both | Part of a reading label, in any letter case: `Temperature`, `Tctl`, `Limit` |
+| `types` | both | Reading types to include, any of `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
+| `stats` | `get_readings` | `true` to add the minimum, maximum and average |
+| `offset` | `get_readings` | How many matching readings to skip; pass the `next_offset` of the previous answer to read on |
+| `seconds` | `sample_readings` | How long to watch, from 1 to 30 seconds; 10 if left out |
+| `values` | `sample_readings` | `true` to also get every sampled value, for up to 16 readings |
 
 For example, the GPU's temperatures and fans with their statistics:
 
@@ -346,9 +351,30 @@ About the output:
 
 - A PC has several hundred readings (484 on the development machine), and one
   `get_readings` call returns at most 300 of them. When more match, `truncated`
-  is set and `matched` gives the total, so narrow the filters to see the rest.
+  is set, `matched` gives the total and `next_offset` says where to continue:
+  narrow the filters, or pass it as `offset` to read on.
 - Flags that HWiNFO shows as Yes/No come as `1` or `0` with the unit `Yes/No`.
 - A `value` is `null` when HWiNFO holds no number for the reading.
+
+### Watching readings over time
+
+`sample_readings` watches for up to 30 seconds and takes one sample per HWiNFO
+poll, every 2 seconds unless you changed that in HWiNFO. For example, the
+voltages and the power readings of the graphics card over half a minute:
+
+```json
+{ "sensor": "GPU", "types": ["voltage", "power"], "seconds": 30, "values": true }
+```
+
+Two limits are worth knowing:
+
+- Nothing shorter than a poll is visible, to this tool or to HWiNFO itself. A
+  voltage spike that lasts milliseconds leaves no trace; catching one takes an
+  oscilloscope.
+- It finds no extreme that the minimum and maximum would miss. Those cover
+  every poll since HWiNFO started, so "did it ever go too high" is answered by
+  `get_readings` with `stats`. What sampling adds is the moment: whether a
+  voltage dipped just as the power draw rose.
 
 ### What the client gets to see
 
@@ -446,7 +472,7 @@ The race detector needs a C compiler; on a Windows machine without one, run
 
 | Path | Contents |
 |---|---|
-| `main.go` | The MCP server and its four tools. |
+| `main.go` | The MCP server and its five tools. |
 | `internal/hwinfo/layout.go` | The shared memory layout and its decoding. |
 | `internal/hwinfo/snapshot.go` | `Parse`, the snapshot types and the reader's portable half. |
 | `internal/hwinfo/read_windows.go` | Opening, locking and copying the shared memory. |

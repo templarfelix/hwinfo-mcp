@@ -96,7 +96,7 @@ claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-O plugin traz o servidor junto com três
+O plugin traz o servidor junto com quatro
 [skills](#skills-que-vêm-com-o-plugin) que dão ao assistente um método para ler
 os sensores, então não há executável para baixar. Dentro de uma sessão (versão
 2.1.275 ou mais recente),
@@ -133,12 +133,13 @@ exemplos para começar:
 
 ### Skills que vêm com o plugin
 
-O plugin acrescenta três skills. O assistente as usa sozinho quando a pergunta
-pede, e você também pode chamar uma pelo nome:
+O plugin acrescenta quatro skills. O assistente as usa sozinho quando a
+pergunta pede, e você também pode chamar uma pelo nome:
 
 | Skill | O que faz |
 |---|---|
 | `/hwinfo:thermal-check` | Avalia se a CPU ou a placa de vídeo esquenta demais, se está sendo contida pela temperatura ou se precisa de pasta térmica ou thermal pads novos. Trabalha com temperatura e potência lidas no mesmo instante, sob carga, e diz o que os sensores não conseguem mostrar. |
+| `/hwinfo:voltage-check` | Avalia se as linhas da fonte e as entradas de energia da placa de vídeo estão na faixa, e como se comportam quando a carga muda. Começa dizendo o que os sensores de tensão da placa-mãe não conseguem mostrar. |
 | `/hwinfo:hardware-checkup` | Percorre contadores de erro de hardware, saúde dos discos, tensões, ventoinhas, memória e limites, e informa o que pede atenção, o que está bem e o que não deu para verificar. |
 | `/hwinfo:setup` | Faz o HWiNFO publicar as leituras, ou explica por que elas pararam. |
 
@@ -330,17 +331,21 @@ Isso coloca o `hwinfo-mcp.exe` na pasta bin do Go, normalmente
 | `hwinfo_status` | Se o HWiNFO está publicando, quando foi a última leitura, quantos sensores e leituras existem e se a cópia foi feita com a trava do HWiNFO. Quando algo está errado, diz o quê e como corrigir. |
 | `list_sensors` | Todos os sensores, com a quantidade de leituras de cada tipo. |
 | `get_readings` | As leituras atuais agrupadas por sensor, restritas pelos filtros abaixo. |
+| `sample_readings` | O que as leituras escolhidas fizeram ao longo de alguns segundos: primeiro e último valor, mínimo, máximo e média, a maior variação entre duas amostras e quando cada extremo aconteceu. |
 | `thermal_overview` | As leituras que mostram o quanto o PC esquenta: por CPU, a temperatura de controle (Tctl/Tdie ou do encapsulamento), a média do die, as temperaturas por CCD, o núcleo mais quente, a potência do encapsulamento, quanto do limite de temperatura ela usa e os indicadores de throttling; por GPU, as temperaturas do núcleo, do hot spot e da junção da memória, a potência consumida, as ventoinhas e o indicador de limite térmico; além das demais temperaturas e rotações de ventoinhas. |
 
-As quatro são anotadas como somente leitura, e só `get_readings` recebe
-argumentos, todos opcionais:
+As cinco são anotadas como somente leitura. `get_readings` e `sample_readings`
+recebem argumentos, todos opcionais:
 
-| Argumento | Significado |
-|---|---|
-| `sensor` | Parte do nome de um sensor, sem diferenciar maiúsculas: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
-| `label` | Parte do rótulo de uma leitura, sem diferenciar maiúsculas: `Temperature`, `Tctl`, `Limit` |
-| `types` | Tipos de leitura a incluir, entre `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
-| `stats` | `true` para incluir mínimo, máximo e média |
+| Argumento | Ferramenta | Significado |
+|---|---|---|
+| `sensor` | as duas | Parte do nome de um sensor, sem diferenciar maiúsculas: `CPU`, `RTX 5080`, `S.M.A.R.T.` |
+| `label` | as duas | Parte do rótulo de uma leitura, sem diferenciar maiúsculas: `Temperature`, `Tctl`, `Limit` |
+| `types` | as duas | Tipos de leitura a incluir, entre `temperature`, `voltage`, `fan`, `current`, `power`, `clock`, `usage`, `other` |
+| `stats` | `get_readings` | `true` para incluir mínimo, máximo e média |
+| `offset` | `get_readings` | Quantas leituras correspondentes pular; passe o `next_offset` da resposta anterior para continuar |
+| `seconds` | `sample_readings` | Por quanto tempo observar, de 1 a 30 segundos; 10 se omitido |
+| `values` | `sample_readings` | `true` para receber também cada valor amostrado, para até 16 leituras |
 
 Por exemplo, as temperaturas e as ventoinhas da GPU com as estatísticas:
 
@@ -352,11 +357,34 @@ Sobre a saída:
 
 - Um PC tem centenas de leituras (484 na máquina de desenvolvimento), e uma
   chamada de `get_readings` devolve no máximo 300. Quando mais leituras
-  correspondem, `truncated` vem marcado e `matched` traz o total; restrinja os
-  filtros para ver o restante.
+  correspondem, `truncated` vem marcado, `matched` traz o total e `next_offset`
+  diz onde continuar: restrinja os filtros, ou passe esse valor em `offset`
+  para ler o restante.
 - Indicadores que o HWiNFO mostra como Sim/Não vêm como `1` ou `0`, com a
   unidade `Yes/No`.
 - Um `value` vem `null` quando o HWiNFO não tem número para a leitura.
+
+### Acompanhando leituras no tempo
+
+`sample_readings` observa por até 30 segundos e tira uma amostra a cada leitura
+do HWiNFO, que acontece de 2 em 2 segundos, a menos que você tenha mudado isso
+no HWiNFO. Por exemplo, as tensões e as potências da placa de vídeo durante
+meio minuto:
+
+```json
+{ "sensor": "GPU", "types": ["voltage", "power"], "seconds": 30, "values": true }
+```
+
+Dois limites que vale conhecer:
+
+- Nada mais curto que uma leitura aparece, nem para esta ferramenta nem para o
+  próprio HWiNFO. Um pico de tensão de milissegundos não deixa rastro; para
+  pegá-lo é preciso um osciloscópio.
+- Ela não encontra extremo que o mínimo e o máximo deixariam passar. Esses
+  cobrem todas as leituras desde que o HWiNFO foi aberto, então "já passou do
+  limite alguma vez?" se responde com `get_readings` e `stats`. O que a
+  amostragem acrescenta é o momento: se a tensão caiu bem na hora em que o
+  consumo subiu.
 
 ### O que o cliente enxerga
 
@@ -456,7 +484,7 @@ um, rode `go test ./...` nela e deixe o `-race` para o CI ou para o Linux.
 
 | Caminho | Conteúdo |
 |---|---|
-| `main.go` | O servidor MCP e suas quatro ferramentas. |
+| `main.go` | O servidor MCP e suas cinco ferramentas. |
 | `internal/hwinfo/layout.go` | O layout da memória compartilhada e sua decodificação. |
 | `internal/hwinfo/snapshot.go` | `Parse`, os tipos do snapshot e a parte portátil do leitor. |
 | `internal/hwinfo/read_windows.go` | Abertura, trava e cópia da memória compartilhada. |
