@@ -4,5 +4,5 @@
   "size": 20469541,
   "sha256": "0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c",
   "url": "https://www.sac.sk/download/utildiag/hwi_860.zip",
-  "bundle": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.0.2/hwinfo-mcp-with-hwinfo.mcpb"
+  "bundle": "https://github.com/templarfelix/hwinfo-mcp/releases/download/v0.0.3/hwinfo-mcp-with-hwinfo.mcpb"
 }
