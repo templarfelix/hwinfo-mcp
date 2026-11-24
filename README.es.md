@@ -26,62 +26,36 @@ conexión de red y no cambia nada en el sistema.
 
 **Solo Windows.** HWiNFO existe únicamente para Windows, igual que la memoria
 compartida que lee este servidor, así que el ejecutable se publica para Windows
-en x64 y en Arm. El plugin y el paquete traen la compilación x64, y no se ha
+en x64 y en Arm. El plugin y los paquetes traen la compilación x64, y no se ha
 probado nada en Windows sobre Arm. El Linux de WSL 2 tampoco ve los chips de
 sensores del PC: ejecuta el servidor del lado de Windows.
 
 ## Inicio rápido
 
-Son tres pasos: preparar HWiNFO, instalar el paquete o el plugin, y preguntar.
+Son tres pasos: instalar el servidor, poner HWiNFO a publicar, y preguntar.
 
-### 1. Instala HWiNFO y activa la memoria compartida
+### 1. Instala el paquete o el plugin
 
-Quien mide es HWiNFO; este proyecto solo lee lo que HWiNFO publica. HWiNFO es
-un programa aparte, con su propia licencia, y no viene incluido aquí. Instálalo
-con:
-
-```
-winget install REALiX.HWiNFO
-```
-
-O descarga [HWiNFO64](https://www.hwinfo.com/download/). Ábrelo; pide permisos
-de administrador, que necesita para acceder al hardware. La publicación viene
-desactivada, así que actívala una vez:
-
-1. En la pantalla inicial, marca **Sensors-only** (solo sensores) y haz clic en
-   **Settings** (configuración).
-2. En la pestaña **General / User Interface**, activa
-   **Shared Memory Support**. Es la opción de la que depende este proyecto. En
-   la misma pestaña, activa **Show Sensors on Startup**,
-   **Minimize Sensors on Startup**, **Minimize Main Window on Startup**,
-   **Minimize Sensors instead of closing** y **Auto Start**, y desactiva
-   **Show Welcome Screen and Progress**, para que HWiNFO arranque con Windows
-   y siga publicando desde el área de notificación.
-   [Configuración de HWiNFO](#configuración-de-hwinfo) explica para qué sirve
-   cada una.
-3. Confirma con **OK** y reinicia HWiNFO: ciérralo desde su icono del área de
-   notificación y ábrelo de nuevo. En la máquina donde se desarrolló este
-   proyecto, las lecturas solo empezaron a publicarse después de ese reinicio.
-
-La edición gratuita de HWiNFO deja de publicar tras 12 horas de ejecución;
-consulta [Configuración de HWiNFO](#configuración-de-hwinfo).
-
-### 2. Instala el paquete o el plugin
-
-Hay cuatro formas de instalar el servidor. De la más fácil a la más laboriosa:
+Hay cinco formas de instalar el servidor. De la más fácil a la más laboriosa:
 
 | Forma | Para | Qué requiere |
 |---|---|---|
+| El paquete con HWiNFO | Claude Desktop, en un PC sin HWiNFO | Descargar un archivo y abrirlo. HWiNFO viene dentro. |
 | El paquete | Claude Desktop | Descargar un archivo y abrirlo. |
 | El plugin | Claude Code | Un comando. |
 | [El ejecutable](#instalar-el-servidor-a-mano) | Cualquier cliente MCP | Descargarlo y registrarlo tú mismo en el cliente. |
 | [Tu propia compilación](#compilar-desde-el-código-fuente) | Cualquier cliente MCP | Lo mismo, después de compilarlo con Go. |
 
-**Claude Desktop: el paquete.** Descarga
+**Claude Desktop: un paquete.** Dos archivos instalan la misma extensión. Usa
+[`hwinfo-mcp-with-hwinfo.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-with-hwinfo.mcpb)
+(24 MB) si el PC aún no tiene HWiNFO: trae además
+[el ZIP portátil de HWiNFO](#la-copia-de-hwinfo-en-el-paquete). Usa
 [`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-y ábrelo, o arrástralo a Claude Desktop. El paquete no está firmado. Si no se
-instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y, por
-favor, abre una issue.
+(4 MB) si HWiNFO ya está instalado, o si prefieres instalarlo tú mismo. Abre el
+archivo, o arrástralo a Claude Desktop. Ninguno de los dos paquetes está
+firmado. Si no se instala,
+[instala el servidor a mano](#instalar-el-servidor-a-mano) y, por favor, abre
+una issue.
 
 **Claude Code: el plugin.** Un comando lo instala:
 
@@ -106,6 +80,52 @@ marketplace y abre la página del plugin, donde lo instalas.
 
 **Cualquier otro cliente MCP**, o si prefieres registrar el servidor tú mismo:
 consulta [Instalar el servidor a mano](#instalar-el-servidor-a-mano).
+
+### 2. Pon HWiNFO a publicar
+
+Quien mide es HWiNFO; este proyecto solo lee lo que HWiNFO publica. HWiNFO es
+un programa aparte, con su propia licencia. Al abrirse pide permisos de
+administrador, que necesita para acceder al hardware, y la publicación viene
+desactivada.
+
+**Con el paquete que trae HWiNFO**, pregunta al asistente:
+
+> ¿HWiNFO está publicando los datos de los sensores?
+
+Mientras no lo esté, la respuesta indica un archivo, `Setup-HWiNFO.cmd`, en la
+carpeta de la extensión. Ejecutarlo es un paso tuyo: pega su ruta en el cuadro
+Ejecutar (Win+R). Descomprime HWiNFO en una carpeta propia, pone al lado un
+archivo de configuración que activa la publicación, y lo inicia. Cuando Windows
+pida permisos de administrador, el editor que muestre debe ser REALiX.
+[La copia de HWiNFO en el paquete](#la-copia-de-hwinfo-en-el-paquete) dice
+exactamente qué hace el archivo y qué no toca.
+
+**En caso contrario**, instala HWiNFO con:
+
+```
+winget install REALiX.HWiNFO
+```
+
+O descarga [HWiNFO64](https://www.hwinfo.com/download/). Ábrelo y activa la
+publicación una vez:
+
+1. En la pantalla inicial, marca **Sensors-only** (solo sensores) y haz clic en
+   **Settings** (configuración).
+2. En la pestaña **General / User Interface**, activa
+   **Shared Memory Support**. Es la opción de la que depende este proyecto. En
+   la misma pestaña, activa **Show Sensors on Startup**,
+   **Minimize Sensors on Startup**, **Minimize Main Window on Startup**,
+   **Minimize Sensors instead of closing** y **Auto Start**, y desactiva
+   **Show Welcome Screen and Progress**, para que HWiNFO arranque con Windows
+   y siga publicando desde el área de notificación.
+   [Configuración de HWiNFO](#configuración-de-hwinfo) explica para qué sirve
+   cada una.
+3. Confirma con **OK** y reinicia HWiNFO: ciérralo desde su icono del área de
+   notificación y ábrelo de nuevo. En la máquina donde se desarrolló este
+   proyecto, las lecturas solo empezaron a publicarse después de ese reinicio.
+
+En ambos casos, la edición gratuita de HWiNFO deja de publicar tras 12 horas de
+ejecución; consulta [Configuración de HWiNFO](#configuración-de-hwinfo).
 
 ### 3. Pregunta
 
@@ -267,9 +287,50 @@ le indican al asistente que tampoco lo haga. Cuando las lecturas se detengan,
 el asistente puede decirte por qué; consulta
 [Solución de problemas](#solución-de-problemas).
 
+### La copia de HWiNFO en el paquete
+
+`hwinfo-mcp-with-hwinfo.mcpb` tiene una carpeta, `hwinfo`, que el otro paquete
+no tiene. En ella:
+
+| Archivo | Qué es |
+|---|---|
+| `hwi_860.zip` | El paquete portátil de HWiNFO, versión 8.60, exactamente como lo publica su autor. Su SHA-256 es `0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c`, y cada ejecutable que contiene lleva la firma de REALiX. Está incluido con el permiso de su autor. |
+| `HWiNFO64.INI` | Un archivo de configuración de este proyecto: modo solo sensores, Shared Memory Support activado, sin pantalla de bienvenida. |
+| `Setup-HWiNFO.cmd` | Un asistente de instalación de este proyecto. |
+| `README.txt` | La misma explicación, junto a los archivos. |
+
+HWiNFO no forma parte de este proyecto. Pertenece a REALiX, es gratuito solo
+para uso no comercial y tiene [su propia licencia](https://www.hwinfo.com/licenses/),
+que no es la de este proyecto.
+
+Nada de esa carpeta se ejecuta a menos que lo ejecutes tú. El servidor solo le
+dice al asistente dónde está el archivo de instalación, y le indica que
+ejecutarlo te corresponde a ti. Ese archivo es para un PC sin HWiNFO.
+Ejecutado por ti, hace tres cosas:
+
+1. Descomprime el paquete en `%LOCALAPPDATA%\hwinfo-mcp\HWiNFO`, salvo que
+   HWiNFO ya esté ahí. El paquete no se ejecuta desde la carpeta de la
+   extensión, porque Claude Desktop reemplaza esa carpeta en cada
+   actualización.
+2. Pone el archivo de configuración al lado, salvo que ya haya uno.
+3. Inicia HWiNFO, salvo que ya haya un HWiNFO en ejecución.
+
+Y no toca lo demás. Nunca cierra, reinicia ni reconfigura un HWiNFO que esté en
+ejecución, no hace que HWiNFO arranque con Windows, y no interviene en el
+límite de 12 horas: cuando HWiNFO desactiva Shared Memory Support, volver a
+activarlo se hace a mano, como se describe arriba. Donde HWiNFO está instalado
+en su lugar habitual, `C:\Program Files\HWiNFO64`, el archivo lo avisa y no
+prepara nada; `Setup-HWiNFO.cmd /portable` prepara su copia de todos modos. En
+Windows sobre Arm inicia `HWiNFO_ARM64.exe` y no añade archivo de
+configuración.
+
+Para quitar esa copia de HWiNFO, ciérrala y borra la carpeta en la que se
+descomprimió. Opciones como arrancar con Windows quedan en tus manos, en la
+configuración de HWiNFO.
+
 ## Instalar el servidor a mano
 
-El paquete y el plugin ya traen el servidor. Para cualquier otro cliente MCP, o
+Los paquetes y el plugin ya traen el servidor. Para cualquier otro cliente MCP, o
 para registrar el servidor tú mismo, descarga el ejecutable de la
 [última versión](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
 En PowerShell:
@@ -426,7 +487,7 @@ causa. Las habituales:
 
 | Problema | Causa |
 |---|---|
-| memoria compartida no encontrada | HWiNFO no está en ejecución, la ventana de sensores está cerrada, Shared Memory Support está desactivado o se activó sin reiniciar HWiNFO. |
+| memoria compartida no encontrada | HWiNFO no está en ejecución, la ventana de sensores está cerrada, Shared Memory Support está desactivado o se activó sin reiniciar HWiNFO. Con el paquete que trae HWiNFO, la respuesta indica además el archivo de instalación. |
 | `active: false`, valores obsoletos | Se cerró la ventana de sensores o se alcanzó el límite de 12 horas de la edición gratuita. |
 | acceso denegado | HWiNFO y el cliente MCP se ejecutan con niveles de integridad distintos. |
 | el asistente no tiene las herramientas de hwinfo | El cliente no se reinició tras añadir el plugin o el servidor, o la ruta del ejecutable es incorrecta. En Claude Code, `claude mcp list` muestra el servidor y si conecta. |
@@ -445,6 +506,20 @@ las herramientas y las skills se registran. El paquete se instaló en Claude
 Desktop 6.6395.1 para Windows: el servidor conecta y las cinco herramientas se
 registran. Aún no se ha observado una pregunta respondida desde un chat de
 Claude Desktop ni las skills ejecutadas por un modelo.
+
+El paquete que trae HWiNFO se instaló en Claude Desktop para Windows (paquete
+6.28899.6.0) en la misma máquina, a partir de una compilación de esta versión.
+El paquete dentro de la extensión instalada coincidió con su SHA-256 fijado y,
+sin ningún HWiNFO en ejecución, `hwinfo_status` indicó el archivo de
+instalación. Ejecutado a mano, ese archivo descomprimió el paquete e inició esa
+copia después de que Windows pidiera permisos de administrador, y cuatro
+segundos después la copia estaba publicando sus lecturas, sin ningún paso en su
+configuración. Dos salvedades sobre esa prueba: la máquina ya tenía HWiNFO
+instalado, con la configuración por usuario de HWiNFO en el registro de
+Windows, así que no se ha probado un PC que nunca haya ejecutado HWiNFO; y el
+archivo aprendió a no hacer nada donde hay un HWiNFO instalado después de ella,
+algo que desde entonces solo han ejercitado las pruebas automatizadas. Nada de
+esto se ha probado en Windows sobre Arm.
 
 Los patrones para procesadores Intel, modelos Ryzen más antiguos y tarjetas
 gráficas AMD o Intel siguen la nomenclatura de HWiNFO, pero no se han
@@ -494,9 +569,11 @@ uno, ejecuta `go test ./...` allí y deja `-race` para el CI o para Linux.
 | `internal/hwinfo/filter.go` | Los filtros y las heurísticas del resumen térmico. |
 | `internal/hwinfo/hwinfotest` | Construye bloques sintéticos de memoria compartida para las pruebas. |
 | `plugin/` | El plugin de Claude Code: manifiesto, configuración de MCP y skills. |
-| `mcpb/` | El manifiesto y el icono del paquete MCP, y la entrada del MCP Registry. |
+| `mcpb/` | El manifiesto y el icono de los paquetes MCP, y la entrada del MCP Registry. |
+| `mcpb/hwinfo.json` | Qué paquete portátil de HWiNFO trae uno de los paquetes: versión, tamaño y SHA-256, y de dónde descargarlo. |
+| `mcpb/hwinfo/` | Los archivos de este proyecto para la carpeta `hwinfo` de ese paquete: el archivo de configuración, el archivo de instalación y el aviso. |
 | `tools/release` | Compila y empaqueta todos los archivos de una versión. |
-| `tools/marketplace` | Apunta la entrada del marketplace a una versión publicada. |
+| `tools/marketplace` | Apunta la entrada del marketplace, y `mcpb/hwinfo.json`, a una versión publicada. |
 | `.claude-plugin/marketplace.json` | La entrada del marketplace, que apunta al plugin de la última versión. |
 
 Las dependencias son la biblioteca estándar de Go, `golang.org/x/sys` y el SDK
@@ -505,20 +582,38 @@ oficial de MCP para Go.
 ### Cómo publicar una versión
 
 1. Envía una etiqueta como `v1.2.3`. El CI ejecuta `go run ./tools/release` y
-   adjunta a la versión los ejecutables, el plugin, el paquete, `server.json` y
-   `SHA256SUMS`. El mismo comando, ejecutado a mano, genera los mismos archivos
-   en `dist/`, y así es como se prueban antes de etiquetar:
+   adjunta a la versión los ejecutables, el plugin, los dos paquetes,
+   `server.json` y `SHA256SUMS`. El mismo comando, ejecutado a mano, genera los
+   mismos archivos en `dist/`, y así es como se prueban antes de etiquetar:
    `claude --plugin-dir dist/hwinfo-plugin.zip` carga el plugin durante una
    sesión.
 2. Con la versión publicada, ejecuta
-   `go run ./tools/marketplace -version v1.2.3` y haz commit del cambio. El
+   `go run ./tools/marketplace -version v1.2.3` y haz commit de los cambios. El
    comando apunta `.claude-plugin/marketplace.json` al nuevo
    `hwinfo-plugin.zip`, después de comprobar la descarga con el `SHA256SUMS`
-   de la versión. De ese commit reciben la actualización los usuarios del
-   plugin.
+   de la versión; de ese commit reciben la actualización los usuarios del
+   plugin. Y apunta `mcpb/hwinfo.json` al paquete de la versión que trae
+   HWiNFO, después de comprobar que contiene el paquete fijado.
+
+El paquete portátil de HWiNFO no está en el repositorio. `tools/release` lo
+descarga de la dirección que figura en `mcpb/hwinfo.json` al directorio
+indicado con `-hwinfo`, y solo usa el archivo cuyo tamaño y SHA-256 están
+fijados ahí. Esa dirección es un espejo que nombra la página de descargas de
+HWiNFO, y solo conserva la versión actual de HWiNFO; cuando el archivo ya no
+esté ahí, la herramienta saca el paquete del paquete publicado que indica ese
+archivo. Para pasar a un HWiNFO más nuevo, descarga su paquete portátil,
+comprueba que Windows muestra una firma válida de REALiX en cada ejecutable, y
+rellena `version`, `file`, `size`, `sha256` y `url` en ese archivo, con
+`bundle` vacío de nuevo. `mcpb/hwinfo/HWiNFO64.INI` y las secciones de los
+README que citan la versión acompañan el cambio.
 
 ## Licencia
 
 MIT. Consulta [LICENSE](LICENSE).
 
-Este proyecto no está afiliado a HWiNFO ni a sus autores.
+Este proyecto no está afiliado a HWiNFO ni a sus autores, y su licencia no
+cubre HWiNFO: HWiNFO pertenece a REALiX y es gratuito para uso no comercial,
+bajo [su propia licencia](https://www.hwinfo.com/licenses/). Un archivo de cada
+versión, `hwinfo-mcp-with-hwinfo.mcpb`, trae el paquete portátil de HWiNFO sin
+modificar, con el permiso de su autor. El archivo de configuración y el archivo
+de instalación que lo acompañan son de este proyecto.

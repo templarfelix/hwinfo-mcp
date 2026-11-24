@@ -1,15 +1,18 @@
 // Command hwinfo-mcp is a read-only Model Context Protocol server for the
 // sensor data HWiNFO publishes through its shared memory interface.
 //
-// It speaks MCP over stdin/stdout and offers four tools:
+// It speaks MCP over stdin/stdout and offers five tools:
 //
 //	hwinfo_status     whether HWiNFO is publishing, and how fresh the data is
 //	list_sensors      the sensors HWiNFO knows and what each one measures
 //	get_readings      readings, filtered by sensor, label and type
+//	sample_readings   what readings did over a few seconds
 //	thermal_overview  the key CPU and GPU temperatures and power draws
 //
 // HWiNFO must be running with the Sensors window open and "Shared Memory
-// Support" enabled in its settings.
+// Support" enabled in its settings. The server never starts or configures
+// HWiNFO. When it was installed from the bundle that carries a copy of
+// HWiNFO, it says where that bundle's setup helper is, for the user to run.
 package main
 
 import (
@@ -21,6 +24,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -92,11 +96,40 @@ type handlers struct {
 	src   source
 	now   func() time.Time
 	sleep func(context.Context, time.Duration) error
+	// setup is the path of the setup helper for the copy of HWiNFO this
+	// installation came with, or "" when it came without one.
+	setup string
 }
 
 // newServer builds the MCP server around src.
 func newServer(src source) *mcp.Server {
-	return newServerAt(src, time.Now, sleepFor)
+	return newServerAt(src, time.Now, sleepFor, bundledSetup())
+}
+
+// setupHelper is where the bundle that carries HWiNFO keeps its setup helper,
+// relative to the bundle's top directory. tools/release packs it there.
+const setupHelper = "hwinfo/Setup-HWiNFO.cmd"
+
+// bundledSetup returns the path of the setup helper this installation came
+// with, or "" when it came without HWiNFO. In a bundle the server sits in the
+// server directory, so the helper is looked for one directory up from there.
+// Looking is all the server does with it.
+func bundledSetup() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return setupIn(filepath.Dir(filepath.Dir(exe)))
+}
+
+// setupIn returns the path of the setup helper under root, or "" if there is
+// none.
+func setupIn(root string) string {
+	p := filepath.Join(root, filepath.FromSlash(setupHelper))
+	if info, err := os.Stat(p); err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
+	return p
 }
 
 // sleepFor waits for d, or returns early with the context's error.
@@ -112,9 +145,10 @@ func sleepFor(ctx context.Context, d time.Duration) error {
 }
 
 // newServerAt is newServer with a replaceable clock, which decides whether a
-// snapshot counts as fresh, and a replaceable wait, which paces sampling.
-func newServerAt(src source, now func() time.Time, sleep func(context.Context, time.Duration) error) *mcp.Server {
-	h := &handlers{src: src, now: now, sleep: sleep}
+// snapshot counts as fresh, a replaceable wait, which paces sampling, and the
+// setup helper's path given rather than looked for.
+func newServerAt(src source, now func() time.Time, sleep func(context.Context, time.Duration) error, setup string) *mcp.Server {
+	h := &handlers{src: src, now: now, sleep: sleep, setup: setup}
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "hwinfo-mcp",
@@ -339,14 +373,35 @@ type thermalOutput struct {
 // licence prohibits automating actions that get around the limits of its free
 // edition, and an assistant that can operate the desktop could otherwise take
 // "re-enable the option" as something to do itself.
-const manualOnly = ` Leave these steps to the user: HWiNFO's licence prohibits automating actions that get around its 12-hour limit.`
+const (
+	leaveToUser = ` Leave these steps to the user`
+	whyManual   = `: HWiNFO's licence prohibits automating actions that get around its 12-hour limit.`
+	manualOnly  = leaveToUser + whyManual
+)
+
+// notPublishing is the hint for hwinfo.ErrNotFound, up to who has to act.
+const notPublishing = `HWiNFO is not publishing sensor data. The user has to make sure HWiNFO is running with the Sensors window open and "Shared Memory Support" enabled in its settings, and to restart HWiNFO if the option was switched on while it was already running. The free edition switches the option off again after 12 hours.`
+
+// advice is hint for this installation. One that came with a copy of HWiNFO
+// also says, when HWiNFO is not publishing at all, where the setup helper for
+// that copy is. The helper unpacks HWiNFO and starts it, so running it is left
+// to the user like the other steps: an assistant with a shell could otherwise
+// take a path in a hint as something to execute.
+func (h *handlers) advice(err error) string {
+	if h.setup == "" || !errors.Is(err, hwinfo.ErrNotFound) {
+		return hint(err)
+	}
+	return notPublishing +
+		fmt.Sprintf(` This installation came with a copy of HWiNFO for a PC that has none: running "%s" unpacks it with Shared Memory Support switched on and starts it.`, h.setup) +
+		leaveToUser + `, running that file included` + whyManual
+}
 
 // hint says how to fix the condition err describes, or "" if there is no
 // specific advice.
 func hint(err error) string {
 	switch {
 	case errors.Is(err, hwinfo.ErrNotFound):
-		return `HWiNFO is not publishing sensor data. The user has to make sure HWiNFO is running with the Sensors window open and "Shared Memory Support" enabled in its settings, and to restart HWiNFO if the option was switched on while it was already running. The free edition switches the option off again after 12 hours.` + manualOnly
+		return notPublishing + manualOnly
 	case errors.Is(err, hwinfo.ErrInactive):
 		return `HWiNFO stopped updating its shared memory: the Sensors window was closed or the free edition's 12-hour limit was reached. The user has to reopen the Sensors window, re-enable "Shared Memory Support" or restart HWiNFO.` + manualOnly
 	case errors.Is(err, hwinfo.ErrAccessDenied):
@@ -394,7 +449,7 @@ func (h *handlers) load() (*hwinfo.Snapshot, error) {
 	if err == nil {
 		err = errors.New("no sensor data")
 	}
-	if advice := hint(err); advice != "" {
+	if advice := h.advice(err); advice != "" {
 		return nil, fmt.Errorf("%w. %s", err, advice)
 	}
 	return nil, err
@@ -406,7 +461,7 @@ func (h *handlers) status(_ context.Context, _ *mcp.CallToolRequest, _ noInput) 
 		if err == nil {
 			err = errors.New("no sensor data")
 		}
-		return nil, statusOutput{Problem: err.Error(), Hint: hint(err)}, nil
+		return nil, statusOutput{Problem: err.Error(), Hint: h.advice(err)}, nil
 	}
 
 	out := statusOutput{

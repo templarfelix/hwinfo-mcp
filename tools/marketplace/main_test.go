@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -128,6 +129,157 @@ func TestRewriteRefusesAFileOfAnotherShape(t *testing.T) {
 		if _, err := rewrite([]byte(data), url, digest); err == nil {
 			t.Errorf("%s: rewrite accepted the file", name)
 		}
+	}
+}
+
+// bundleWith returns a zip archive shaped like the bundle that carries
+// HWiNFO: a manifest and, when pkg is not nil, the package in its folder.
+func bundleWith(t *testing.T, pkg []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	entries := map[string][]byte{"manifest.json": []byte("{}")}
+	if pkg != nil {
+		entries[packageDir+"/hwi_999.zip"] = pkg
+	}
+	for name, content := range entries {
+		f, err := w.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(content); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+// pinOf is a pin file for pkg that names no bundle yet.
+func pinOf(pkg []byte) string {
+	return fmt.Sprintf(`{
+  "version": "9.99",
+  "file": "hwi_999.zip",
+  "size": %d,
+  "sha256": "%s",
+  "url": "https://example.com/hwi_999.zip",
+  "bundle": ""
+}
+`, len(pkg), digestOf(pkg))
+}
+
+// releaseWithBundle serves a release that has the given bundle, listed in its
+// SHA256SUMS as sums says.
+func releaseWithBundle(t *testing.T, version string, bundle []byte, sums string) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/"+version+"/SHA256SUMS", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, sums) })
+	mux.HandleFunc("/"+version+"/"+bundleName, func(w http.ResponseWriter, _ *http.Request) { w.Write(bundle) })
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func pinFile(t *testing.T, content string) string {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "hwinfo.json")
+	if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return file
+}
+
+func TestKeepPackage(t *testing.T) {
+	pkg := []byte("HWiNFO's portable package")
+	bundle := bundleWith(t, pkg)
+	srv := releaseWithBundle(t, "v1.2.3", bundle, digestOf(bundle)+"  "+bundleName+"\n")
+	file := pinFile(t, pinOf(pkg))
+
+	bundleURL, err := keepPackage(srv.Client(), file, srv.URL, "v1.2.3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := srv.URL + "/v1.2.3/" + bundleName; bundleURL != want {
+		t.Errorf("keepPackage returned %s, want %s", bundleURL, want)
+	}
+	got, _ := os.ReadFile(file)
+	// Only the bundle changed; the rest of the pin is byte for byte the same.
+	if want := strings.Replace(pinOf(pkg), `"bundle": ""`, `"bundle": "`+bundleURL+`"`, 1); string(got) != want {
+		t.Errorf("pin file:\n%s\nwant:\n%s", got, want)
+	}
+
+	// A later release replaces the bundle the pin names.
+	next := releaseWithBundle(t, "v1.2.4", bundle, digestOf(bundle)+"  "+bundleName+"\n")
+	if _, err := keepPackage(next.Client(), file, next.URL, "v1.2.4"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(file); !bytes.Contains(got, []byte(next.URL+"/v1.2.4/"+bundleName)) || bytes.Contains(got, []byte("v1.2.3")) {
+		t.Errorf("the pin does not name the later release's bundle alone:\n%s", got)
+	}
+}
+
+// A bundle that is not the listed one, or does not carry the pinned package,
+// leaves the pin exactly as it was: a wrong fallback is worse than none.
+func TestKeepPackageRefusesWhatDoesNotAddUp(t *testing.T) {
+	pkg := []byte("HWiNFO's portable package")
+	bundle := bundleWith(t, pkg)
+	listedAs := func(b []byte) string { return digestOf(b) + "  " + bundleName + "\n" }
+
+	tests := map[string]struct {
+		version string // release asked for; the server only has v1.2.3
+		bundle  []byte
+		sums    string
+		pin     string
+		wantErr string
+	}{
+		"bundle differs from its checksum":   {"v1.2.3", bundleWith(t, []byte("tampered")), listedAs(bundle), pinOf(pkg), "but SHA256SUMS lists"},
+		"release from before the bundle":     {"v1.2.3", bundle, digestOf(bundle) + "  hwinfo-mcp.mcpb\n", pinOf(pkg), "no entry for"},
+		"bundle without the package":         {"v1.2.3", bundleWith(t, nil), listedAs(bundleWith(t, nil)), pinOf(pkg), "no hwinfo/hwi_999.zip inside"},
+		"bundle carries another package":     {"v1.2.3", bundle, listedAs(bundle), pinOf([]byte("the package of another version")), "pins"},
+		"release does not exist":             {"v9.9.9", bundle, listedAs(bundle), pinOf(pkg), "404"},
+		"pin file without a bundle to point": {"v1.2.3", bundle, listedAs(bundle), strings.Replace(pinOf(pkg), `"bundle"`, `"mirror"`, 1), "occurs 0 times"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := releaseWithBundle(t, "v1.2.3", tt.bundle, tt.sums)
+			file := pinFile(t, tt.pin)
+
+			_, err := keepPackage(srv.Client(), file, srv.URL, tt.version)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %v, want one mentioning %q", err, tt.wantErr)
+			}
+			if got, _ := os.ReadFile(file); string(got) != tt.pin {
+				t.Errorf("the pin was changed although the release did not add up:\n%s", got)
+			}
+		})
+	}
+}
+
+// The pin in the repository must have the shape this tool rewrites.
+func TestRepositoryPinFile(t *testing.T) {
+	data, err := os.ReadFile(filepath.FromSlash("../../mcpb/hwinfo.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(bundleRE.FindAllIndex(data, -1)); n != 1 {
+		t.Errorf("mcpb/hwinfo.json: the bundle occurs %d times, want 1", n)
+	}
+	var pin struct {
+		File, SHA256, Bundle string
+		Size                 int64
+	}
+	if err := json.Unmarshal(data, &pin); err != nil {
+		t.Fatal(err)
+	}
+	if pin.File == "" || pin.Size <= 0 || len(pin.SHA256) != 64 {
+		t.Errorf("mcpb/hwinfo.json does not describe a package: %+v", pin)
+	}
+	const prefix = "https://github.com/templarfelix/hwinfo-mcp/releases/download/"
+	if version, ok := strings.CutSuffix(strings.TrimPrefix(pin.Bundle, prefix), "/"+bundleName); pin.Bundle != "" &&
+		(!strings.HasPrefix(pin.Bundle, prefix) || !ok || !versionRE.MatchString(version)) {
+		t.Errorf("bundle = %s, want the %s of a tagged release under %s", pin.Bundle, bundleName, prefix)
 	}
 }
 

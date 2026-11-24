@@ -56,6 +56,17 @@ jobs:
         with:
           node-version-file: .tool-versions
 
+      # One of the bundles carries HWiNFO's portable package, which is not in
+      # the repository: the release tool downloads it and accepts only the
+      # file whose size and SHA-256 are pinned in mcpb/hwinfo.json. Keeping it
+      # between runs spares the mirror a download on every push; a restored
+      # file goes through the same check as a downloaded one.
+      - uses: actions/cache@v6
+        if: runner.os == 'Linux'
+        with:
+          path: ~/.cache/hwinfo-mcp-release
+          key: hwinfo-package-${{ hashFiles('mcpb/hwinfo.json') }}
+
       - name: Package a trial release
         if: runner.os == 'Linux'
         run: go run ./tools/release -version v0.0.0-ci -out dist
@@ -79,7 +90,9 @@ jobs:
       # Only this repository's own Go code runs between here and the upload:
       # no Node.js, and -mcpb "" leaves out the check that would fetch the
       # mcpb tool from npm. The test job has already run that check on the
-      # same commit.
+      # same commit. The one thing fetched here is HWiNFO's portable package,
+      # which is data: it is checked against its pinned size and SHA-256,
+      # copied into a bundle and never run.
       - name: Package
         run: go run ./tools/release -version "$GITHUB_REF_NAME" -out dist -mcpb ""
 

@@ -25,60 +25,37 @@ network connection and changes nothing on the system.
 
 **Windows only.** HWiNFO exists only for Windows, and so does the shared memory
 this server reads, so the executable is released for Windows on x64 and on Arm.
-The plugin and the bundle carry the x64 build, and nothing has been tested on
+The plugin and the bundles carry the x64 build, and nothing has been tested on
 Windows on Arm. Linux inside WSL 2 does not see the PC's sensor chips either:
 run the server on the Windows side.
 
 ## Quick start
 
-Three steps: set up HWiNFO, install the bundle or the plugin, and ask.
+Three steps: install the server, get HWiNFO publishing, and ask.
 
-### 1. Install HWiNFO and switch on its shared memory
+### 1. Install the bundle or the plugin
 
-HWiNFO does the measuring; this project only reads what HWiNFO publishes.
-HWiNFO is a separate program under its own licence and is not included here.
-Install it with:
-
-```
-winget install REALiX.HWiNFO
-```
-
-Or download [HWiNFO64](https://www.hwinfo.com/download/). Start it; it asks for
-administrator rights, which it needs to reach the hardware. Its publishing is
-off by default, so switch it on once:
-
-1. On the welcome screen, tick **Sensors-only** and click **Settings**.
-2. On the **General / User Interface** tab, enable **Shared Memory Support**.
-   That is the option this project depends on. On the same tab, enable
-   **Show Sensors on Startup**, **Minimize Sensors on Startup**,
-   **Minimize Main Window on Startup**, **Minimize Sensors instead of closing**
-   and **Auto Start**, and switch off **Show Welcome Screen and Progress**, so
-   that HWiNFO starts with Windows and keeps publishing from the notification
-   area. [HWiNFO settings](#hwinfo-settings) says what each one is for.
-3. Confirm with **OK**, then restart HWiNFO: close it from its notification
-   area icon and start it again. On the machine this was developed on, the
-   readings were only published after that restart.
-
-The free edition of HWiNFO stops publishing after 12 hours of run time; see
-[HWiNFO settings](#hwinfo-settings).
-
-### 2. Install the bundle or the plugin
-
-There are four ways to install the server. From the easiest to the most
+There are five ways to install the server. From the easiest to the most
 involved:
 
 | Way | For | What it takes |
 |---|---|---|
+| The bundle with HWiNFO | Claude Desktop, on a PC that has no HWiNFO | Download one file and open it. HWiNFO comes inside. |
 | The bundle | Claude Desktop | Download one file and open it. |
 | The plugin | Claude Code | One command. |
 | [The executable](#installing-the-server-by-hand) | Any MCP client | Download it and register it with the client yourself. |
 | [Your own build](#building-from-source) | Any MCP client | The same, after compiling it with Go. |
 
-**Claude Desktop: the bundle.** Download
+**Claude Desktop: a bundle.** Two files install the same extension. Take
+[`hwinfo-mcp-with-hwinfo.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-with-hwinfo.mcpb)
+(24 MB) if the PC has no HWiNFO yet: it also carries
+[HWiNFO's portable package](#the-copy-of-hwinfo-in-the-bundle). Take
 [`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
-and open it, or drag it into Claude Desktop. The bundle is not signed. If it
-does not install, [install the server by hand](#installing-the-server-by-hand),
-and please open an issue.
+(4 MB) if HWiNFO is installed already, or if you would rather install it
+yourself. Open the file, or drag it into Claude Desktop. Neither bundle is
+signed. If it does not install,
+[install the server by hand](#installing-the-server-by-hand), and please open
+an issue.
 
 **Claude Code: the plugin.** One command installs it:
 
@@ -103,6 +80,49 @@ marketplace and opens the plugin's page, where you install it.
 
 **Any other MCP client**, or if you would rather register the server yourself:
 see [Installing the server by hand](#installing-the-server-by-hand).
+
+### 2. Get HWiNFO publishing
+
+HWiNFO does the measuring; this project only reads what HWiNFO publishes.
+HWiNFO is a separate program under its own licence. It asks for administrator
+rights when it starts, which it needs to reach the hardware, and its publishing
+is off by default.
+
+**With the bundle that carries HWiNFO**, ask the assistant:
+
+> Is HWiNFO publishing sensor data?
+
+While it is not, the answer names a file, `Setup-HWiNFO.cmd`, in the
+extension's folder. Running it is your step: paste its path into the Run box
+(Win+R). It unpacks HWiNFO into a folder of its own, puts a settings file next
+to it that switches the publishing on, and starts it. When Windows asks for
+administrator rights, the publisher it names should be REALiX.
+[The copy of HWiNFO in the bundle](#the-copy-of-hwinfo-in-the-bundle) says
+exactly what the file does and what it leaves alone.
+
+**Otherwise**, install HWiNFO with:
+
+```
+winget install REALiX.HWiNFO
+```
+
+Or download [HWiNFO64](https://www.hwinfo.com/download/). Start it and switch
+its publishing on once:
+
+1. On the welcome screen, tick **Sensors-only** and click **Settings**.
+2. On the **General / User Interface** tab, enable **Shared Memory Support**.
+   That is the option this project depends on. On the same tab, enable
+   **Show Sensors on Startup**, **Minimize Sensors on Startup**,
+   **Minimize Main Window on Startup**, **Minimize Sensors instead of closing**
+   and **Auto Start**, and switch off **Show Welcome Screen and Progress**, so
+   that HWiNFO starts with Windows and keeps publishing from the notification
+   area. [HWiNFO settings](#hwinfo-settings) says what each one is for.
+3. Confirm with **OK**, then restart HWiNFO: close it from its notification
+   area icon and start it again. On the machine this was developed on, the
+   readings were only published after that restart.
+
+Either way, the free edition of HWiNFO stops publishing after 12 hours of run
+time; see [HWiNFO settings](#hwinfo-settings).
 
 ### 3. Ask
 
@@ -260,9 +280,48 @@ you to take: this project does not do it for you, and its tools tell the
 assistant not to. When the readings stop, the assistant can tell you why; see
 [Troubleshooting](#troubleshooting).
 
+### The copy of HWiNFO in the bundle
+
+`hwinfo-mcp-with-hwinfo.mcpb` has a folder, `hwinfo`, that the other bundle
+does not. In it:
+
+| File | What it is |
+|---|---|
+| `hwi_860.zip` | HWiNFO's portable package, version 8.60, exactly as its author publishes it. Its SHA-256 is `0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c`, and each executable in it carries REALiX's signature. It is included with its author's permission. |
+| `HWiNFO64.INI` | A settings file of this project: sensors-only mode, Shared Memory Support on, no welcome screen. |
+| `Setup-HWiNFO.cmd` | A setup helper of this project. |
+| `README.txt` | The same explanation, next to the files. |
+
+HWiNFO is not part of this project. It belongs to REALiX, is freeware for
+non-commercial use only, and comes under
+[its own licence](https://www.hwinfo.com/licenses/), not under this project's.
+
+Nothing in that folder runs unless you start it. The server only tells the
+assistant where the helper is, and tells it to leave running it to you.
+The helper is for a PC that has no HWiNFO. Run by you, it does three things:
+
+1. It unpacks the package into `%LOCALAPPDATA%\hwinfo-mcp\HWiNFO`, unless
+   HWiNFO is already there. The package is not run from the extension's own
+   folder, because Claude Desktop replaces that folder with every update.
+2. It puts the settings file next to it, unless a settings file is already
+   there.
+3. It starts HWiNFO, unless a HWiNFO is already running.
+
+And it leaves the rest alone. It never closes, restarts or reconfigures a
+HWiNFO that is running, it does not make HWiNFO start with Windows, and it has
+no part in the 12-hour limit: when HWiNFO switches Shared Memory Support off,
+switching it on again is done by hand, as above. Where HWiNFO is installed in
+its usual place, `C:\Program Files\HWiNFO64`, the helper says so and sets
+nothing up; `Setup-HWiNFO.cmd /portable` sets its copy up all the same. On
+Windows on Arm it starts `HWiNFO_ARM64.exe` and adds no settings file.
+
+To remove that copy of HWiNFO, close it and delete the folder it was unpacked
+into. Options such as starting with Windows are yours to set, in HWiNFO's
+settings.
+
 ## Installing the server by hand
 
-The bundle and the plugin carry the server with them. For any other MCP client,
+The bundles and the plugin carry the server with them. For any other MCP client,
 or to register the server yourself, download the executable from the
 [latest release](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
 In PowerShell:
@@ -412,7 +471,7 @@ cause. The usual ones:
 
 | Problem | Cause |
 |---|---|
-| shared memory not found | HWiNFO is not running, the Sensors window is closed, Shared Memory Support is off, or it was enabled without restarting HWiNFO. |
+| shared memory not found | HWiNFO is not running, the Sensors window is closed, Shared Memory Support is off, or it was enabled without restarting HWiNFO. With the bundle that carries HWiNFO, the answer also names the setup helper. |
 | `active: false`, values stale | The Sensors window was closed or the free edition's 12-hour limit was reached. |
 | access denied | HWiNFO and the MCP client run at different integrity levels. |
 | the assistant has no hwinfo tools | The client was not restarted after the plugin or the server was added, or the path to the executable is wrong. In Claude Code, `claude mcp list` shows the server and whether it connects. |
@@ -431,6 +490,18 @@ and its tools and skills register. The bundle was installed in Claude Desktop
 6.6395.1 for Windows: its server connects and its five tools register. A
 question answered from a Claude Desktop chat, and the skills run by a model,
 have not been observed yet.
+
+The bundle that carries HWiNFO was installed in Claude Desktop for Windows
+(package 6.28899.6.0) on the same machine, from a build of this version. The
+package inside the installed extension matched its pinned SHA-256, and while no
+HWiNFO was running `hwinfo_status` named the setup helper. Run by hand, the
+helper unpacked the package and started that copy after Windows asked for
+administrator rights, and four seconds later the copy was publishing its
+readings with no step in its settings. Two things about that run: the machine
+already had HWiNFO installed, with HWiNFO's per-user settings in the registry,
+so a PC that has never run HWiNFO has not been tried; and the helper learned to
+stand back from an installed HWiNFO after it, which only automated tests have
+exercised since. Nothing of this has been tried on Windows on Arm.
 
 The patterns for Intel processors, older Ryzen models and AMD or Intel graphics
 cards follow HWiNFO's naming but have not been checked on such hardware. If
@@ -478,9 +549,11 @@ The race detector needs a C compiler; on a Windows machine without one, run
 | `internal/hwinfo/filter.go` | Filtering and the thermal overview heuristics. |
 | `internal/hwinfo/hwinfotest` | Builds synthetic shared memory blocks for tests. |
 | `plugin/` | The Claude Code plugin: manifest, MCP configuration and skills. |
-| `mcpb/` | The MCP bundle's manifest and icon, and the MCP Registry entry. |
+| `mcpb/` | The MCP bundles' manifest and icon, and the MCP Registry entry. |
+| `mcpb/hwinfo.json` | Which HWiNFO portable package one bundle carries: its version, size and SHA-256, and where to get it. |
+| `mcpb/hwinfo/` | This project's files for that bundle's `hwinfo` folder: the settings file, the setup helper and the notice. |
 | `tools/release` | Builds and packs every file of a release. |
-| `tools/marketplace` | Points the marketplace entry at a published release. |
+| `tools/marketplace` | Points the marketplace entry, and the pin of HWiNFO's package, at a published release. |
 | `.claude-plugin/marketplace.json` | The marketplace entry, which points at the plugin of the latest release. |
 
 Dependencies are the Go standard library, `golang.org/x/sys` and the official
@@ -489,19 +562,37 @@ MCP Go SDK.
 ### Releasing
 
 1. Push a tag such as `v1.2.3`. CI runs `go run ./tools/release` and attaches
-   the executables, the plugin, the bundle, `server.json` and `SHA256SUMS` to
-   the release. The same command run by hand builds the same files into
-   `dist/`, which is how to try them before tagging:
+   the executables, the plugin, the two bundles, `server.json` and
+   `SHA256SUMS` to the release. The same command run by hand builds the same
+   files into `dist/`, which is how to try them before tagging:
    `claude --plugin-dir dist/hwinfo-plugin.zip` loads the plugin for one
    session.
 2. Once the release is published, run
-   `go run ./tools/marketplace -version v1.2.3` and commit the change. It
+   `go run ./tools/marketplace -version v1.2.3` and commit the changes. It
    points `.claude-plugin/marketplace.json` at the new `hwinfo-plugin.zip`,
-   after checking the download against the release's `SHA256SUMS`. Plugin
-   users get the update from that commit.
+   after checking the download against the release's `SHA256SUMS`; plugin
+   users get the update from that commit. And it points `mcpb/hwinfo.json` at
+   the release's bundle that carries HWiNFO, after checking that the bundle
+   holds the pinned package.
+
+HWiNFO's portable package is not in the repository. `tools/release` downloads
+it from the address in `mcpb/hwinfo.json` into its `-hwinfo` directory and
+uses only the file whose size and SHA-256 are pinned there. That address is a
+mirror named on HWiNFO's download page, and it keeps only HWiNFO's current
+version; once it has dropped the file, the tool takes the package out of the
+published bundle the pin names. To move to a newer HWiNFO, download its
+portable package, check that Windows shows a valid REALiX signature on every
+executable in it, and set `version`, `file`, `size`, `sha256` and `url` in
+the pin, with `bundle` empty again. `mcpb/hwinfo/HWiNFO64.INI` and the README
+sections that name the version go with it.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-This project is not affiliated with HWiNFO or its authors.
+This project is not affiliated with HWiNFO or its authors, and its licence does
+not cover HWiNFO: HWiNFO belongs to REALiX and is freeware for non-commercial
+use under [its own licence](https://www.hwinfo.com/licenses/). One file of a
+release, `hwinfo-mcp-with-hwinfo.mcpb`, carries HWiNFO's portable package
+unmodified, with its author's permission. The settings file and the setup
+helper next to it are this project's own.

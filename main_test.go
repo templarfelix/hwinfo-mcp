@@ -93,8 +93,14 @@ func connect(t *testing.T, src source) *mcp.ClientSession {
 // connectAt is connect with a clock and a wait of the test's choosing.
 func connectAt(t *testing.T, src source, now func() time.Time, sleep func(context.Context, time.Duration) error) *mcp.ClientSession {
 	t.Helper()
+	return connectTo(t, newServerAt(src, now, sleep, ""))
+}
+
+// connectTo returns a client connected to server.
+func connectTo(t *testing.T, server *mcp.Server) *mcp.ClientSession {
+	t.Helper()
 	serverSide, clientSide := mcp.NewInMemoryTransports()
-	ss, err := newServerAt(src, now, sleep).Connect(t.Context(), serverSide, nil)
+	ss, err := server.Connect(t.Context(), serverSide, nil)
 	if err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -321,6 +327,85 @@ func TestStatusExplainsFailures(t *testing.T) {
 		if errors.Is(tt.err, hwinfo.ErrAccessDenied) && !strings.Contains(got.Hint, "do not start the client or HWiNFO with other privileges") {
 			t.Errorf("%v: hint = %q, want it to rule out changing privileges", tt.err, got.Hint)
 		}
+	}
+}
+
+// An installation that came with a copy of HWiNFO says where the setup helper
+// for it is when HWiNFO is not publishing at all, and at no other time.
+func TestAdviceNamesTheSetupHelper(t *testing.T) {
+	const helper = `C:\Users\someone\Claude Extensions\hwinfo\hwinfo\Setup-HWiNFO.cmd`
+	notFound := fmt.Errorf("%w (%s)", hwinfo.ErrNotFound, hwinfo.MappingName)
+	withHelper := func(src source) *mcp.ClientSession {
+		return connectTo(t, newServerAt(src, clock, sleepFor, helper))
+	}
+
+	cs := withHelper(failing(notFound))
+	got, _ := output[statusOutput](t, cs, "hwinfo_status", nil)
+	// The helper starts a program, so running it is the user's step too: the
+	// hint reaches assistants that have a shell.
+	for _, want := range []string{helper, "Shared Memory Support", leftToUser + ", running that file included"} {
+		if !strings.Contains(got.Hint, want) {
+			t.Errorf("hint = %q, want it to contain %q", got.Hint, want)
+		}
+	}
+	// The tools that need data pass the same advice on.
+	res := call(t, cs, "thermal_overview", nil)
+	if msg := text(t, res); !res.IsError || !strings.Contains(msg, helper) || !strings.Contains(msg, leftToUser) {
+		t.Errorf("thermal_overview: IsError = %v, message = %q; want the helper and who is to run it", res.IsError, msg)
+	}
+
+	// Without a copy of HWiNFO there is nothing to point at.
+	plain, _ := output[statusOutput](t, connect(t, failing(notFound)), "hwinfo_status", nil)
+	if strings.Contains(plain.Hint, "copy of HWiNFO") || strings.Contains(plain.Hint, "Setup-HWiNFO") {
+		t.Errorf("hint = %q; this installation has no setup helper to name", plain.Hint)
+	}
+
+	// A HWiNFO that is there, but refuses access, publishes something
+	// unreadable or has stopped, is not a reason to set another one up.
+	stopped := fixture()
+	stopped.Dead = true
+	for name, src := range map[string]source{
+		"access denied": failing(fmt.Errorf("%w (%s)", hwinfo.ErrAccessDenied, hwinfo.MappingName)),
+		"bad signature": failing(fmt.Errorf("%w: signature %q", hwinfo.ErrSignature, "ABCD")),
+		"inactive":      from(t, stopped),
+	} {
+		got, _ := output[statusOutput](t, withHelper(src), "hwinfo_status", nil)
+		if got.Hint == "" || strings.Contains(got.Hint, "Setup-HWiNFO") {
+			t.Errorf("%s: hint = %q, want advice that leaves the setup helper out", name, got.Hint)
+		}
+	}
+}
+
+func TestSetupIn(t *testing.T) {
+	root := t.TempDir()
+	if got := setupIn(root); got != "" {
+		t.Errorf("setupIn found %q in an empty directory", got)
+	}
+
+	helper := filepath.Join(root, filepath.FromSlash(setupHelper))
+	// A directory of that name is not a helper.
+	if err := os.MkdirAll(helper, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := setupIn(root); got != "" {
+		t.Errorf("setupIn took the directory %q for the helper", got)
+	}
+	if err := os.Remove(helper); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(helper, []byte("@echo off\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := setupIn(root); got != helper {
+		t.Errorf("setupIn = %q, want %q", got, helper)
+	}
+}
+
+// The server and the release tool have to agree on where the helper is. The
+// tool packs the files of mcpb/hwinfo into the hwinfo folder of the bundle.
+func TestSetupHelperIsWhereTheBundlePutsIt(t *testing.T) {
+	if _, err := os.Stat(filepath.Join("mcpb", filepath.FromSlash(setupHelper))); err != nil {
+		t.Errorf("the server looks for %s in a bundle, but the bundle's sources have none: %v", setupHelper, err)
 	}
 }
 
