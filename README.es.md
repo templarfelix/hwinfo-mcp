@@ -31,161 +31,85 @@ PC: ejecuta el servidor del lado de Windows.
 
 ## Inicio rápido
 
-### 1. Configura HWiNFO
+Son tres pasos: preparar HWiNFO, instalar el plugin o el paquete, y preguntar.
 
-Quien mide es HWiNFO; este servidor solo lee lo que HWiNFO publica. HWiNFO es
-un programa aparte, con su propia licencia, y no viene incluido aquí. Su
-publicación viene desactivada, así que hay que activarla una vez.
+### 1. Instala HWiNFO y activa la memoria compartida
 
-1. Instala [HWiNFO64](https://www.hwinfo.com/download/), o ejecuta
-   `winget install REALiX.HWiNFO`, y ábrelo. Pide permisos de administrador,
-   que necesita para acceder al hardware.
-2. En la pantalla inicial, marca **Sensors-only** (solo sensores) y haz clic en
-   **Settings** (configuración). Más adelante, la misma configuración está en
-   el menú del icono de HWiNFO en el área de notificación.
-3. En la pestaña **General / User Interface**, activa estas opciones:
+Quien mide es HWiNFO; este proyecto solo lee lo que HWiNFO publica. HWiNFO es
+un programa aparte, con su propia licencia, y no viene incluido aquí. Instálalo
+con:
 
-   | Opción | Para qué |
-   |---|---|
-   | **Shared Memory Support** | Obligatoria. Hace que HWiNFO publique sus lecturas para otros programas. |
-   | **Show Sensors on Startup** | Las lecturas solo se publican mientras los sensores están en marcha. |
-   | **Minimize Sensors on Startup**, **Minimize Main Window on Startup** | HWiNFO arranca directamente en el área de notificación. |
-   | **Minimize Sensors instead of closing** | Cerrar la ventana de sensores por accidente no detiene las lecturas. |
-   | **Auto Start** | HWiNFO arranca con Windows, así que las lecturas siempre están disponibles. |
+```
+winget install REALiX.HWiNFO
+```
 
-   Y desactiva **Show Welcome Screen and Progress**, para que HWiNFO no se
-   detenga en la pantalla inicial cada vez que arranca.
+O descarga [HWiNFO64](https://www.hwinfo.com/download/). Ábrelo; pide permisos
+de administrador, que necesita para acceder al hardware. La publicación viene
+desactivada, así que actívala una vez:
 
-4. Confirma con **OK** y reinicia HWiNFO: ciérralo desde su icono del área de
+1. En la pantalla inicial, marca **Sensors-only** (solo sensores) y haz clic en
+   **Settings** (configuración).
+2. En la pestaña **General / User Interface**, activa
+   **Shared Memory Support**. Es la opción de la que depende este proyecto. En
+   la misma pestaña, activa **Show Sensors on Startup**,
+   **Minimize Sensors on Startup**, **Minimize Main Window on Startup**,
+   **Minimize Sensors instead of closing** y **Auto Start**, y desactiva
+   **Show Welcome Screen and Progress**, para que HWiNFO arranque con Windows
+   y siga publicando desde el área de notificación.
+   [Configuración de HWiNFO](#configuración-de-hwinfo) explica para qué sirve
+   cada una.
+3. Confirma con **OK** y reinicia HWiNFO: ciérralo desde su icono del área de
    notificación y ábrelo de nuevo. En la máquina donde se desarrolló este
    proyecto, las lecturas solo empezaron a publicarse después de ese reinicio.
 
-A partir de ahí basta con que HWiNFO esté en ejecución, con la ventana de
-sensores abierta o minimizada en el área de notificación.
+La edición gratuita de HWiNFO deja de publicar tras 12 horas de ejecución;
+consulta [Configuración de HWiNFO](#configuración-de-hwinfo).
 
-Las etiquetas pueden verse algo distintas en tu versión de HWiNFO, y se
-traducen cuando HWiNFO se ejecuta en otro idioma. El archivo de configuración
-es el mismo en cualquier caso: `HWiNFO64.INI`, en la carpeta de HWiNFO
-(normalmente `C:\Program Files\HWiNFO64`). Esta es la configuración con la que
-se desarrolló y probó el servidor:
+### 2. Instala el plugin o el paquete
 
-```ini
-[Settings]
-SensorsOnly=1
-SensorsSM=1
-ShowWelcomeAndProgress=0
-OpenSensors=1
-MinimalizeMainWnd=1
-MinimalizeSensors=1
-MinimalizeSensorsClose=1
-Autorun=1
+**Claude Code.** Un comando instala el plugin:
+
+```
+claude plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
 ```
 
-`SensorsSM=1` es Shared Memory Support, la opción que importa.
-
-**El límite de 12 horas.** La edición gratuita de HWiNFO desactiva Shared
-Memory Support tras 12 horas de ejecución, y entonces hay que volver a
-activarlo en la configuración. HWiNFO Pro no tiene ese límite. Cuando las
-lecturas se detengan, el asistente puede decirte por qué; consulta
-[Solución de problemas](#solución-de-problemas).
-
-### 2. Instálalo
-
-Elige el camino según tu cliente.
-
-#### Claude Code: el plugin
-
-El plugin trae el servidor junto con tres
-[skills](#skills-que-vienen-con-el-plugin) que le dan al asistente un método
-para leer los sensores. Desde una terminal:
+Requiere Claude Code 2.1.292 o posterior. En una versión anterior, usa estos
+dos:
 
 ```
 claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-O dentro de una sesión de Claude Code, con la versión 2.1.275 o posterior:
+El plugin trae el servidor junto con tres
+[skills](#skills-que-vienen-con-el-plugin) que le dan al asistente un método
+para leer los sensores, así que no hay ningún ejecutable que descargar. Dentro
+de una sesión (versión 2.1.275 o posterior),
+`/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp` añade el
+marketplace y abre la página del plugin, donde lo instalas.
 
-```
-/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
-```
-
-El plugin trae su propia copia del servidor, así que no hay ningún ejecutable
-que descargar.
-
-#### Claude Desktop: el paquete
-
-Descarga
+**Claude Desktop.** Descarga
 [`hwinfo-mcp.mcpb`](https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp.mcpb)
 y ábrelo, o arrástralo a Claude Desktop. El paquete es nuevo en la v0.2.0 y
 hasta ahora solo se ha comprobado con la propia herramienta de empaquetado. Si
-no se instala, usa el ejecutable como se describe a continuación y, por favor,
-abre una issue.
+no se instala, [instala el servidor a mano](#instalar-el-servidor-a-mano) y,
+por favor, abre una issue.
 
-#### Cualquier cliente MCP: el ejecutable
+**Cualquier otro cliente MCP**, o si prefieres registrar el servidor tú mismo:
+consulta [Instalar el servidor a mano](#instalar-el-servidor-a-mano).
 
-Descarga el ejecutable de la
-[última versión](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
-En PowerShell:
+### 3. Pregunta
 
-```powershell
-$dir = "$env:USERPROFILE\tools\hwinfo-mcp"
-New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest "https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-windows-amd64.exe" -OutFile "$dir\hwinfo-mcp.exe"
-```
-
-En Windows sobre Arm, usa `hwinfo-mcp-windows-arm64.exe`. Para comprobar la
-descarga, compara `Get-FileHash "$dir\hwinfo-mcp.exe"` con el archivo
-`SHA256SUMS` de la versión. El ejecutable no tiene firma de código, por lo que
-el navegador o Windows pueden mostrar una advertencia.
-
-O compílalo tú mismo con Go:
-
-```
-go install github.com/templarfelix/hwinfo-mcp@latest
-```
-
-Eso deja `hwinfo-mcp.exe` en la carpeta bin de Go, normalmente
-`%USERPROFILE%\go\bin`; usa esa ruta más abajo.
-
-Después, registra el ejecutable en tu cliente.
-
-**Claude Code** (PowerShell):
-
-```powershell
-claude mcp add --scope user hwinfo -- "$env:USERPROFILE\tools\hwinfo-mcp\hwinfo-mcp.exe"
-claude mcp get hwinfo
-```
-
-El segundo comando debe mostrar `Connected`. En `cmd.exe`, escribe la ruta como
-`%USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe`. Abre una sesión nueva después;
-una que ya estaba abierta puede no ver todavía el servidor.
-
-**Claude Desktop**: añade el servidor a `claude_desktop_config.json` y reinicia
-la aplicación.
-
-```json
-{
-  "mcpServers": {
-    "hwinfo": {
-      "command": "C:\\Users\\tu-usuario\\tools\\hwinfo-mcp\\hwinfo-mcp.exe"
-    }
-  }
-}
-```
-
-**Cualquier otro cliente MCP** capaz de iniciar un servidor stdio funciona
-igual: el comando es la ruta del ejecutable, sin argumentos.
-
-### 3. Comprueba que funciona
-
-Pregúntale al asistente:
+Empieza con:
 
 > ¿HWiNFO está publicando los datos de los sensores?
 
-Llama a `hwinfo_status` y debería responder que los sensores están activos y de
-cuándo es la última lectura. Si no lo están, la respuesta dice qué falla y cómo
-arreglarlo.
+El asistente llama a `hwinfo_status` y debería responder que los sensores están
+activos y de cuándo es la última lectura. Si no lo están, la respuesta dice qué
+falla y cómo arreglarlo; con el plugin, `/hwinfo:setup` te guía paso a paso.
+
+Después pregunta lo que querías saber; [Cómo preguntar](#cómo-preguntar) tiene
+ejemplos.
 
 ## Cómo preguntar
 
@@ -283,6 +207,107 @@ HWiNFO, y no se activó ningún indicador de throttling:
 }
 ```
 
+## Configuración de HWiNFO
+
+Las opciones del inicio rápido están en la pestaña **General / User Interface**
+de la configuración de HWiNFO; la tabla dice para qué sirve cada una. Después
+del primer arranque, la configuración está en el menú del icono de HWiNFO en el
+área de notificación.
+
+| Opción | Para qué |
+|---|---|
+| **Shared Memory Support** | Obligatoria. Hace que HWiNFO publique sus lecturas para otros programas. |
+| **Show Sensors on Startup** | Las lecturas solo se publican mientras los sensores están en marcha. |
+| **Minimize Sensors on Startup**, **Minimize Main Window on Startup** | HWiNFO arranca directamente en el área de notificación. |
+| **Minimize Sensors instead of closing** | Cerrar la ventana de sensores por accidente no detiene las lecturas. |
+| **Auto Start** | HWiNFO arranca con Windows, así que las lecturas siempre están disponibles. |
+| **Show Welcome Screen and Progress**, desactivada | HWiNFO no se detiene en la pantalla inicial cada vez que arranca. |
+
+Con eso basta con que HWiNFO esté en ejecución, con la ventana de sensores
+abierta o minimizada en el área de notificación.
+
+Las etiquetas pueden verse algo distintas en tu versión de HWiNFO, y se
+traducen cuando HWiNFO se ejecuta en otro idioma. El archivo de configuración
+es el mismo en cualquier caso: `HWiNFO64.INI`, en la carpeta de HWiNFO
+(normalmente `C:\Program Files\HWiNFO64`). Esta es la configuración con la que
+se desarrolló y probó el servidor:
+
+```ini
+[Settings]
+SensorsOnly=1
+SensorsSM=1
+ShowWelcomeAndProgress=0
+OpenSensors=1
+MinimalizeMainWnd=1
+MinimalizeSensors=1
+MinimalizeSensorsClose=1
+Autorun=1
+```
+
+`SensorsSM=1` es Shared Memory Support, la opción que importa.
+
+**El límite de 12 horas.** La edición gratuita de HWiNFO desactiva Shared
+Memory Support tras 12 horas de ejecución, y entonces hay que volver a
+activarlo en la configuración. HWiNFO Pro no tiene ese límite. Cuando las
+lecturas se detengan, el asistente puede decirte por qué; consulta
+[Solución de problemas](#solución-de-problemas).
+
+## Instalar el servidor a mano
+
+El plugin y el paquete ya traen el servidor. Para cualquier otro cliente MCP, o
+para registrar el servidor tú mismo, descarga el ejecutable de la
+[última versión](https://github.com/templarfelix/hwinfo-mcp/releases/latest).
+En PowerShell:
+
+```powershell
+$dir = "$env:USERPROFILE\tools\hwinfo-mcp"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest "https://github.com/templarfelix/hwinfo-mcp/releases/latest/download/hwinfo-mcp-windows-amd64.exe" -OutFile "$dir\hwinfo-mcp.exe"
+```
+
+En Windows sobre Arm, usa `hwinfo-mcp-windows-arm64.exe`. Para comprobar la
+descarga, compara `Get-FileHash "$dir\hwinfo-mcp.exe"` con el archivo
+`SHA256SUMS` de la versión. El ejecutable no tiene firma de código, por lo que
+el navegador o Windows pueden mostrar una advertencia.
+
+O compílalo tú mismo con Go:
+
+```
+go install github.com/templarfelix/hwinfo-mcp@latest
+```
+
+Eso deja `hwinfo-mcp.exe` en la carpeta bin de Go, normalmente
+`%USERPROFILE%\go\bin`; usa esa ruta más abajo.
+
+Después, registra el ejecutable en tu cliente.
+
+**Claude Code** (PowerShell):
+
+```powershell
+claude mcp add --scope user hwinfo -- "$env:USERPROFILE\tools\hwinfo-mcp\hwinfo-mcp.exe"
+claude mcp get hwinfo
+```
+
+El segundo comando debe mostrar `Connected`. En `cmd.exe`, escribe la ruta como
+`%USERPROFILE%\tools\hwinfo-mcp\hwinfo-mcp.exe`. Abre una sesión nueva después;
+una que ya estaba abierta puede no ver todavía el servidor.
+
+**Claude Desktop**: añade el servidor a `claude_desktop_config.json` y reinicia
+la aplicación.
+
+```json
+{
+  "mcpServers": {
+    "hwinfo": {
+      "command": "C:\\Users\\tu-usuario\\tools\\hwinfo-mcp\\hwinfo-mcp.exe"
+    }
+  }
+}
+```
+
+**Cualquier otro cliente MCP** capaz de iniciar un servidor stdio funciona
+igual: el comando es la ruta del ejecutable, sin argumentos.
+
 ## Herramientas
 
 | Herramienta | Qué devuelve |
@@ -361,7 +386,7 @@ causa. Las habituales:
 | memoria compartida no encontrada | HWiNFO no está en ejecución, la ventana de sensores está cerrada, Shared Memory Support está desactivado o se activó sin reiniciar HWiNFO. |
 | `active: false`, valores obsoletos | Se cerró la ventana de sensores o se alcanzó el límite de 12 horas de la edición gratuita. |
 | acceso denegado | HWiNFO y el cliente MCP se ejecutan con niveles de integridad distintos. |
-| el asistente no tiene las herramientas de hwinfo | El cliente no se reinició tras añadir el servidor, o la ruta del ejecutable es incorrecta. En Claude Code, `claude mcp get hwinfo` muestra la ruta y si conecta. |
+| el asistente no tiene las herramientas de hwinfo | El cliente no se reinició tras añadir el plugin o el servidor, o la ruta del ejecutable es incorrecta. En Claude Code, `claude mcp list` muestra el servidor y si conecta. |
 
 ## Qué se ha verificado
 

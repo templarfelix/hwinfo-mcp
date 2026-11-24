@@ -20,18 +20,22 @@ hardware problems in plain words.
 
 ## Install
 
-From a shell:
+One command, with Claude Code 2.1.292 or later:
+
+```
+claude plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
+```
+
+On an older version, use these two instead:
 
 ```
 claude plugin marketplace add templarfelix/hwinfo-mcp
 claude plugin install hwinfo@hwinfo-mcp
 ```
 
-Or inside a Claude Code session, with version 2.1.275 or later:
-
-```
-/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp
-```
+Inside a session (version 2.1.275 or later),
+`/plugin install hwinfo --marketplace templarfelix/hwinfo-mcp` adds the
+marketplace and opens the plugin's page, where you install it.
 
 If you had already added the server by hand with `claude mcp add`, remove that
 entry, or every tool shows up twice: `claude mcp remove hwinfo`, with `-s user`
@@ -41,8 +45,10 @@ if you added it with `--scope user`.
 
 - Windows. HWiNFO exists only for Windows, so on macOS, Linux and inside WSL
   the server has nothing to read.
-- HWiNFO64 running with **Shared Memory Support** enabled. `/hwinfo:setup`
-  walks you through it.
+- HWiNFO64 running with **Shared Memory Support** enabled. HWiNFO is a separate
+  program under its own licence and is not included: get it with
+  `winget install REALiX.HWiNFO` or from https://www.hwinfo.com/download/, and
+  `/hwinfo:setup` walks you through the settings.
 
 The executable is not code-signed. It reads HWiNFO's shared memory and nothing
 else: it opens no network connection and changes nothing on the system.
