@@ -99,7 +99,7 @@ Executar (Win+R). Ele descompacta o HWiNFO em uma pasta própria, põe ao lado u
 arquivo de configuração que liga a publicação, e o inicia. Quando o Windows
 pedir permissão de administrador, o fornecedor mostrado deve ser REALiX. O
 HWiNFO precisa continuar rodando para as leituras existirem; com esse arquivo
-de configuração, fechar a janela dele só o minimiza.
+de configuração, fechar a janela dele só o manda para a área de notificação.
 [A cópia do HWiNFO no pacote](#a-cópia-do-hwinfo-no-pacote) diz exatamente o
 que o arquivo faz e no que ele não mexe.
 
@@ -296,7 +296,7 @@ tem. Nela:
 | Arquivo | O que é |
 |---|---|
 | `hwi_860.zip` | O pacote portátil do HWiNFO, versão 8.60, exatamente como o autor o publica. O SHA-256 dele é `0f7726ee30f6b040cc13aa9de5a19619545a00dd7515fc17ebea9f9f2996e83c`, e cada executável dentro dele tem a assinatura da REALiX. Ele está incluído com a permissão do autor. |
-| `HWiNFO64.INI` | Um arquivo de configuração deste projeto: modo somente sensores, Shared Memory Support ligado, sem tela de boas-vindas, e janela de sensores que minimiza em vez de fechar, para que fechá-la não interrompa as leituras. |
+| `HWiNFO64.INI` | Um arquivo de configuração deste projeto: modo somente sensores, Shared Memory Support ligado, sem tela de boas-vindas, e janela de sensores que vai para a área de notificação em vez de fechar, para que fechá-la não interrompa as leituras. |
 | `Setup-HWiNFO.cmd` | Um auxiliar de instalação deste projeto. |
 | `README.txt` | A mesma explicação, ao lado dos arquivos. |
 
@@ -518,9 +518,10 @@ configurações por usuário do HWiNFO no registro do Windows, então um PC que
 nunca rodou o HWiNFO não foi testado; e o auxiliar só aprendeu a não mexer onde
 há um HWiNFO instalado depois deles, o que desde então só os testes
 automatizados exercitaram. A opção que mantém o HWiNFO rodando quando a janela
-é fechada também entrou no arquivo de configuração depois desses testes, e não
-foi testada com a cópia do pacote; é a opção com que roda o HWiNFO instalado
-naquela máquina. Nada disso foi testado no Windows em Arm.
+é fechada também entrou depois desses testes, e foi testada em um terceiro,
+escrita à mão no arquivo de configuração da cópia que já estava montada: ao
+fechar a janela de sensores ela sumiu, o HWiNFO ficou na área de notificação e
+continuou publicando. Nada disso foi testado no Windows em Arm.
 
 Os padrões para processadores Intel, modelos Ryzen mais antigos e placas de
 vídeo AMD ou Intel seguem a nomenclatura do HWiNFO, mas não foram conferidos

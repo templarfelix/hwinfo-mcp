@@ -88,7 +88,8 @@ if exist "%DEST%\HWiNFO64.INI" goto settings_kept
 copy /Y "%SRC%HWiNFO64.INI" "%DEST%\HWiNFO64.INI" >nul
 if errorlevel 1 goto settings_failed
 echo Added the settings file: sensors-only mode, Shared Memory Support on,
-echo and closing the Sensors window minimises HWiNFO instead of ending it.
+echo and closing the Sensors window sends HWiNFO to the notification area
+echo instead of ending it.
 goto start
 
 :settings_kept
